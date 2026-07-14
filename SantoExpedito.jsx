@@ -3,7 +3,7 @@ import {
   Wrench, Package, Users, Shield, LogOut, Plus, Edit2, Trash2,
   AlertTriangle, CheckCircle, X, Eye, EyeOff, Lock, User, Home, Search,
   RefreshCw, ChevronRight, Key, UserPlus, Menu, AlertCircle,
-  Barcode, ScanLine, ShoppingCart, Cross, Receipt, Minus, DollarSign, Boxes,
+  Barcode, ScanLine, ShoppingCart, Cog, Receipt, Minus, DollarSign, Boxes,
   Banknote, CreditCard, QrCode
 } from "lucide-react";
 
@@ -92,10 +92,10 @@ const BtnOutline = ({ onClick, icon: I, children }) => (
 const Th = ({ children }) => <th className="text-left text-xs font-semibold text-slate-500 uppercase tracking-wide px-4 py-3">{children}</th>;
 const Td = ({ children, className = "" }) => <td className={`px-4 py-3 text-sm ${className}`}>{children}</td>;
 
-// ── Logo do Santo Expedito (emblema cruz) ─────────────────────────────────────
+// ── Logo do Santo Expedito (emblema engrenagem) ────────────────────────────────
 const Emblema = ({ size = 22 }) => (
   <div className="bg-red-600 rounded-xl flex items-center justify-center shadow-md" style={{ width: size * 1.9, height: size * 1.9 }}>
-    <Cross size={size} className="text-white" strokeWidth={2.5} />
+    <Cog size={size} className="text-white" strokeWidth={2.5} />
   </div>
 );
 
@@ -283,13 +283,13 @@ export default function App() {
         <div className="absolute inset-0 opacity-[0.06]"
           style={{ backgroundImage: "repeating-linear-gradient(0deg,#fff 0,#fff 1px,transparent 1px,transparent 34px),repeating-linear-gradient(90deg,#fff 0,#fff 1px,transparent 1px,transparent 34px)" }} />
         <div className="absolute -bottom-20 -right-10 opacity-10">
-          <Cross size={280} className="text-white" strokeWidth={1.5} />
+          <Cog size={280} className="text-white" strokeWidth={1.5} />
         </div>
 
         <div className="relative">
           <div className="flex items-center gap-3 mb-16">
             <div className="bg-white p-2.5 rounded-xl shadow-lg">
-              <Cross size={22} className="text-red-700" strokeWidth={2.5} />
+              <Cog size={22} className="text-red-700" strokeWidth={2.5} />
             </div>
             <div>
               <p className="text-white font-bold leading-none">Santo Expedito</p>
@@ -316,7 +316,7 @@ export default function App() {
       <div className="flex-1 flex items-center justify-center p-6 bg-slate-50">
         <div className="w-full max-w-sm">
           <div className="lg:hidden flex items-center gap-2 mb-10">
-            <div className="bg-red-600 p-2 rounded-lg"><Cross size={16} className="text-white" /></div>
+            <div className="bg-red-600 p-2 rounded-lg"><Cog size={16} className="text-white" /></div>
             <span className="text-slate-800 font-bold">Santo Expedito</span>
           </div>
 
@@ -1393,7 +1393,7 @@ export default function App() {
         {/* Logo */}
         <div className="flex items-center gap-2.5 px-3 py-4 border-b border-slate-100 shrink-0">
           <div className="bg-red-600 p-1.5 rounded-lg shrink-0 shadow-sm">
-            <Cross size={16} className="text-white" strokeWidth={2.5} />
+            <Cog size={16} className="text-white" strokeWidth={2.5} />
           </div>
           {sbar && (
             <div className="overflow-hidden">
