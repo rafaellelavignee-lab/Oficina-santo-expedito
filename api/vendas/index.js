@@ -4,6 +4,10 @@ import { requireAuth, getClientIp } from "../_lib/auth.js";
 const SERVICOS = ["Mão de obra", "Revisão"];
 const PAGAMENTOS = ["Dinheiro", "PIX", "Débito", "Crédito"];
 
+// Mesma exceção de api/users/index.js: o caixa compartilhado não é uma pessoa
+// vendendo de verdade, então não pode ser escolhido como atendente responsável.
+const LOGIN_CAIXA_COMPARTILHADO = "caixa-loja";
+
 function toPublicVenda(v, itens) {
   return {
     id: v.id,
@@ -53,7 +57,11 @@ export default async function handler(req, res) {
     let vendedorId = u.id;
     let vendedorNome = u.nome;
     if (atendenteId !== undefined && atendenteId !== null && atendenteId !== "") {
-      const [selecionado] = await sql`SELECT id, nome FROM users WHERE id = ${Number(atendenteId)} AND cargo = 'Atendente' AND status = 'ativo'`;
+      const [selecionado] = await sql`
+        SELECT id, nome FROM users
+        WHERE id = ${Number(atendenteId)} AND cargo IN ('Atendente', 'Administrador') AND status = 'ativo'
+          AND login <> ${LOGIN_CAIXA_COMPARTILHADO}
+      `;
       if (!selecionado) return res.status(400).json({ error: "Atendente selecionado é inválido." });
       vendedorId = selecionado.id;
       vendedorNome = selecionado.nome;

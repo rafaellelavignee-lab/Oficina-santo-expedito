@@ -20,6 +20,9 @@ const ROLES = ["Administrador", "Estoquista", "Atendente"];
 // Exceção pontual: entre os Atendentes, só esse login pode acessar o Estoque.
 // Os demais (atuais e futuros cadastros) não têm acesso ao módulo.
 const ATENDENTE_COM_ACESSO_ESTOQUE = "maria.eloisa";
+// Login do caixa compartilhado usado no terminal de Vendas Diárias — não é
+// uma pessoa vendendo de verdade, então some da lista de atendente responsável.
+const LOGIN_CAIXA_COMPARTILHADO = "caixa-loja";
 const MAX_FAIL = 5;
 const PAGAMENTOS = [
   { id: "Dinheiro", icon: Banknote },
@@ -232,7 +235,11 @@ export default function App() {
       const data = await r.json();
       if (!r.ok) return;
       const lista = sess?.user.cargo === "Administrador"
-        ? data.users.filter(u => u.cargo === "Atendente" && u.status === "ativo")
+        ? data.users.filter(u =>
+            (u.cargo === "Atendente" || u.cargo === "Administrador") &&
+            u.status === "ativo" &&
+            u.login !== LOGIN_CAIXA_COMPARTILHADO
+          )
         : data.users;
       setAtendentes(lista.map(u => ({ id: u.id, nome: u.nome })));
     } catch {

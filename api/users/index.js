@@ -6,11 +6,17 @@ import { writeAudit } from "../_lib/audit.js";
 const CARGOS = ["Administrador", "Estoquista", "Atendente"];
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
+// Login do caixa compartilhado usado pelo terminal de Vendas Diárias — não é
+// uma pessoa vendendo de verdade, então nunca deve aparecer como opção de
+// "atendente responsável" (nem aqui, nem na validação em api/vendas).
+const LOGIN_CAIXA_COMPARTILHADO = "caixa-loja";
+
 export default async function handler(req, res) {
   // GET fica aberto a qualquer autenticado (não só Admin) porque o caixa de
   // Vendas Diárias precisa da lista de atendentes pra atribuir a venda a quem
   // de fato vendeu, mesmo com um login compartilhado na tela. Quem não é
-  // Admin recebe só {id, nome} dos atendentes ativos, nunca a lista completa.
+  // Admin recebe só {id, nome} dos atendentes/administrador ativos, nunca a
+  // lista completa.
   if (req.method === "GET") {
     const u = await requireAuth(req, res);
     if (!u) return;
@@ -18,7 +24,12 @@ export default async function handler(req, res) {
       const rows = await sql`SELECT * FROM users ORDER BY data_cad ASC`;
       return res.status(200).json({ users: rows.map(toPublicUser) });
     }
-    const rows = await sql`SELECT id, nome FROM users WHERE cargo = 'Atendente' AND status = 'ativo' ORDER BY nome ASC`;
+    const rows = await sql`
+      SELECT id, nome FROM users
+      WHERE cargo IN ('Atendente', 'Administrador') AND status = 'ativo'
+        AND login <> ${LOGIN_CAIXA_COMPARTILHADO}
+      ORDER BY nome ASC
+    `;
     return res.status(200).json({ users: rows });
   }
 
