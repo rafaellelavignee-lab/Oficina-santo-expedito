@@ -30,6 +30,7 @@ const PAGAMENTOS = [
 const NAV = [
   { id: "dashboard", label: "Dashboard",          icon: Home,         allow: ["Administrador"] },
   { id: "vendas",    label: "Vendas Diárias",     icon: ShoppingCart, allow: ["Administrador","Atendente"] },
+  { id: "acompanhamento", label: "Acompanhar Vendas", icon: Receipt,  allow: ["Administrador"] },
   { id: "estoque",   label: "Estoque & Produtos", icon: Package,      allow: ["Administrador","Estoquista","Atendente"] },
   { id: "usuarios",  label: "Usuários",           icon: Users,        allow: ["Administrador"] },
   { id: "auditoria", label: "Auditoria",          icon: Shield,       allow: ["Administrador"] },
@@ -717,52 +718,77 @@ export default function App() {
           </div>
 
           <div className="bg-white rounded-xl p-5 shadow-sm border border-slate-100">
-            <h3 className="font-bold text-slate-800 text-sm mb-3">{isAdmin ? "Histórico de vendas" : "Vendas de hoje"}</h3>
-            {isAdmin && (
-              <div className="relative mb-3">
-                <Search size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-                <input value={search} onChange={e => setSearch(e.target.value)}
-                  placeholder="Buscar por nº, atendente, pagamento ou item..."
-                  className="w-full border border-slate-200 rounded-lg pl-8 pr-3 py-2 text-xs focus:outline-none focus:border-red-400 bg-white transition-colors" />
-              </div>
-            )}
+            <h3 className="font-bold text-slate-800 text-sm mb-3">Vendas de hoje</h3>
             {(() => {
-              if (!isAdmin) {
-                const hoje = vendas.filter(v => sameDay(v.data, nowISO()));
-                if (hoje.length === 0) return <p className="text-slate-400 text-xs">Nenhuma venda hoje.</p>;
-                return <p className="text-slate-600 text-sm font-semibold">{hoje.length} venda(s) registrada(s) hoje.</p>;
-              }
-              const termo = search.trim().toLowerCase();
-              const lista = termo
-                ? vendas.filter(v =>
-                    v.num.toLowerCase().includes(termo) ||
-                    (v.atendente || "").toLowerCase().includes(termo) ||
-                    (v.pag || "").toLowerCase().includes(termo) ||
-                    v.itens.some(i => i.nome.toLowerCase().includes(termo))
-                  )
-                : vendas.filter(v => sameDay(v.data, nowISO()));
-              if (lista.length === 0) {
-                return <p className="text-slate-400 text-xs">{termo ? "Nenhuma venda encontrada." : "Nenhuma venda hoje."}</p>;
-              }
-              return (
-                <div className="max-h-72 overflow-y-auto divide-y divide-slate-50">
-                  {lista.slice(0, termo ? 30 : 6).map(v => (
-                    <div key={v.id} className="py-1.5 text-xs">
-                      <div className="flex justify-between items-center">
-                        <span className="font-mono text-slate-500">{v.num} <span className="text-slate-300">· {v.pag || "—"}</span></span>
-                        <span className="font-semibold text-emerald-600">{fmtCur(v.total)}</span>
-                      </div>
-                      {termo && (
-                        <div className="flex justify-between items-center mt-0.5 text-[11px] text-slate-400">
-                          <span>{v.atendente || "—"}</span>
-                          <span className="font-mono">{fmtDT(v.data)}</span>
-                        </div>
-                      )}
-                    </div>
-                  ))}
+              const hoje = vendas.filter(v => sameDay(v.data, nowISO()));
+              if (hoje.length === 0) return <p className="text-slate-400 text-xs">Nenhuma venda hoje.</p>;
+              if (!isAdmin) return <p className="text-slate-600 text-sm font-semibold">{hoje.length} venda(s) registrada(s) hoje.</p>;
+              return hoje.slice(0, 6).map(v => (
+                <div key={v.id} className="flex justify-between items-center py-1.5 text-xs border-b border-slate-50 last:border-0">
+                  <span className="font-mono text-slate-500">{v.num} <span className="text-slate-300">· {v.pag || "—"}</span></span>
+                  <span className="font-semibold text-emerald-600">{fmtCur(v.total)}</span>
                 </div>
-              );
+              ));
             })()}
+          </div>
+        </div>
+      </div>
+    );
+  };
+
+  // ── Render: Acompanhar Vendas (Admin) ─────────────────────────────────────
+  const renderAcompanhamento = () => {
+    const termo = search.trim().toLowerCase();
+    const lista = termo
+      ? vendas.filter(v =>
+          v.num.toLowerCase().includes(termo) ||
+          (v.atendente || "").toLowerCase().includes(termo) ||
+          (v.pag || "").toLowerCase().includes(termo) ||
+          v.itens.some(i => i.nome.toLowerCase().includes(termo))
+        )
+      : vendas;
+    return (
+      <div className="space-y-5">
+        <div className="grid grid-cols-2 xl:grid-cols-4 gap-4">
+          <StatCard icon={ShoppingCart} label="Vendas hoje"      value={stats.vendasHoje}             color="red"   sub={fmtCur(stats.totalHoje)} />
+          <StatCard icon={Package}      label="Peças hoje"       value={fmtCur(stats.totalPecasHoje)}    color="blue"  sub="Faturamento em produtos" />
+          <StatCard icon={Wrench}       label="Mão de obra hoje" value={fmtCur(stats.totalServicosHoje)} color="slate" sub="Serviços e revisões" />
+          <StatCard icon={DollarSign}   label="Faturamento hoje" value={fmtCur(stats.totalHoje)}         color="green" sub="Peças + mão de obra" />
+        </div>
+
+        <div className="bg-white rounded-xl shadow-sm border border-slate-100 overflow-hidden">
+          <div className="p-4 border-b border-slate-100">
+            <div className="relative max-w-sm">
+              <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+              <input value={search} onChange={e => setSearch(e.target.value)}
+                placeholder="Buscar por nº, atendente, pagamento ou item..."
+                className="w-full border border-slate-200 rounded-lg pl-9 pr-3 py-2 text-sm focus:outline-none focus:border-red-400 bg-white transition-colors" />
+            </div>
+          </div>
+          <div className="overflow-x-auto">
+            {vendasErr && <p className="text-xs text-red-600 font-medium px-4 py-3 flex items-center gap-1.5"><AlertCircle size={13} />{vendasErr}</p>}
+            {vendasLoading
+            ? <p className="text-center text-slate-400 text-sm py-12 flex items-center justify-center gap-2"><RefreshCw size={14} className="animate-spin" />Carregando vendas...</p>
+            : <table className="w-full min-w-[700px]">
+              <thead className="bg-slate-50 border-b border-slate-100">
+                <tr>{["Data / Hora","Nº","Atendente","Pagamento","Itens","Total"].map(h => <Th key={h}>{h}</Th>)}</tr>
+              </thead>
+              <tbody className="divide-y divide-slate-50">
+                {lista.slice(0, 100).map(v => (
+                  <tr key={v.id} className="hover:bg-red-50/20 transition-colors">
+                    <Td className="text-slate-400 text-xs font-mono whitespace-nowrap">{fmtDT(v.data)}</Td>
+                    <Td className="text-xs font-bold text-red-700">{v.num}</Td>
+                    <Td className="text-xs font-semibold text-slate-600">{v.atendente || "—"}</Td>
+                    <Td className="text-xs text-slate-500">{v.pag || "—"}</Td>
+                    <Td className="text-slate-600 text-xs">{v.itens.map(i => `${i.qtd}×${i.nome}`).join(", ")}</Td>
+                    <Td className="text-xs font-bold text-emerald-600 whitespace-nowrap">{fmtCur(v.total)}</Td>
+                  </tr>
+                ))}
+                {lista.length === 0 && (
+                  <tr><td colSpan={6} className="text-center text-slate-400 py-10 text-sm">Nenhuma venda encontrada.</td></tr>
+                )}
+              </tbody>
+            </table>}
           </div>
         </div>
       </div>
@@ -1069,6 +1095,7 @@ export default function App() {
     switch (mod) {
       case "dashboard": return renderDashboard();
       case "vendas":    return renderVendas();
+      case "acompanhamento": return renderAcompanhamento();
       case "estoque":   return renderEstoque();
       case "usuarios":  return renderUsuarios();
       case "auditoria": return renderAuditoria();
