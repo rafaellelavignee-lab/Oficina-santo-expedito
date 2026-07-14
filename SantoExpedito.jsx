@@ -865,6 +865,23 @@ export default function App() {
     fetchUsers();
   };
 
+  const salvarEdicaoUser = async () => {
+    if (!mf.nome) { alert("Informe o nome."); return; }
+    if (mf.cargo === "Administrador") {
+      if (!mf.email) { alert("Administrador precisa de um e-mail para entrar no sistema."); return; }
+      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(mf.email)) { alert("E-mail inválido."); return; }
+    }
+    const r = await fetch(`/api/users/${mf.id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ nome: mf.nome, email: mf.email || "" }),
+    });
+    const data = await r.json();
+    if (!r.ok) { alert(data.error || "Não foi possível salvar as alterações."); return; }
+    fetchUsers();
+    closeM();
+  };
+
   const renderUsuarios = () => (
     <div className="space-y-4">
       <div className="flex justify-between items-center">
@@ -899,6 +916,10 @@ export default function App() {
                 <Td><Badge color={u.status === "ativo" ? "green" : "red"} label={u.status === "ativo" ? "Ativo" : "Inativo"} /></Td>
                 <Td>
                   <div className="flex gap-1">
+                    <button title="Editar nome/e-mail" onClick={() => { setMf({ id:u.id, login:u.login, cargo:u.cargo, nome:u.nome, email:u.email || "" }); setModal("edit_user"); }}
+                      className="p-1.5 hover:bg-slate-100 rounded text-slate-400 hover:text-slate-700 transition-colors">
+                      <Edit2 size={13} />
+                    </button>
                     {u.fail >= MAX_FAIL && (
                       <button title="Desbloquear conta" onClick={() => desbloquearUser(u)}
                         className="p-1.5 hover:bg-red-50 rounded text-red-500 hover:text-red-700 transition-colors">
@@ -937,7 +958,7 @@ export default function App() {
     const aColor = {
       LOGIN:"text-emerald-600", LOGOUT:"text-slate-400", LOGIN_FALHA:"text-red-600",
       VENDA:"text-emerald-600", USER_CRIAR:"text-blue-600", USER_EXCLUIR:"text-red-600",
-      USER_STATUS:"text-amber-600", USER_DESBLOQUEAR:"text-blue-600",
+      USER_STATUS:"text-amber-600", USER_DESBLOQUEAR:"text-blue-600", USER_EDITAR:"text-amber-600",
       PECA_CRIAR:"text-blue-600", PECA_EDITAR:"text-amber-600",
       ESTOQUE_MOV:"text-blue-600", ESTOQUE_BIP:"text-blue-600",
     };
@@ -1216,6 +1237,27 @@ export default function App() {
               fetchPecas();
               closeM();
             }}>Confirmar</BtnPrimary>
+          </div>
+        </div>
+      </ModalWrap>
+    );
+
+    // ─ Editar Usuário (nome/e-mail) ─
+    if (modal === "edit_user") return (
+      <ModalWrap title="Editar Usuário" onClose={closeM}>
+        <div className="space-y-4">
+          <div className="grid grid-cols-2 gap-4">
+            <Fld label="Login"><Inp value={mf.login || ""} disabled className="bg-slate-50 text-slate-400" /></Fld>
+            <Fld label="Cargo"><Inp value={mf.cargo || ""} disabled className="bg-slate-50 text-slate-400" /></Fld>
+          </div>
+          <Fld label="Nome completo"><Inp value={mf.nome || ""} onChange={e => setMf(p => ({ ...p, nome: e.target.value }))} /></Fld>
+          <Fld label={mf.cargo === "Administrador" ? "E-mail (usado para entrar no sistema)" : "E-mail (opcional)"}>
+            <Inp type="email" placeholder="nome@suaoficina.com" value={mf.email || ""}
+              onChange={e => setMf(p => ({ ...p, email: e.target.value }))} />
+          </Fld>
+          <div className="flex justify-end gap-2 pt-2 border-t border-slate-100">
+            <BtnOutline onClick={closeM}>Cancelar</BtnOutline>
+            <BtnPrimary onClick={salvarEdicaoUser}>Salvar alterações</BtnPrimary>
           </div>
         </div>
       </ModalWrap>
