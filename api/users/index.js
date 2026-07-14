@@ -1,19 +1,29 @@
 import bcrypt from "bcryptjs";
 import { sql } from "../_lib/db.js";
-import { requireAdmin, toPublicUser, getClientIp } from "../_lib/auth.js";
+import { requireAuth, requireAdmin, toPublicUser, getClientIp } from "../_lib/auth.js";
 import { writeAudit } from "../_lib/audit.js";
 
 const CARGOS = ["Administrador", "Estoquista", "Atendente"];
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 export default async function handler(req, res) {
+  // GET fica aberto a qualquer autenticado (não só Admin) porque o caixa de
+  // Vendas Diárias precisa da lista de atendentes pra atribuir a venda a quem
+  // de fato vendeu, mesmo com um login compartilhado na tela. Quem não é
+  // Admin recebe só {id, nome} dos atendentes ativos, nunca a lista completa.
+  if (req.method === "GET") {
+    const u = await requireAuth(req, res);
+    if (!u) return;
+    if (u.cargo === "Administrador") {
+      const rows = await sql`SELECT * FROM users ORDER BY data_cad ASC`;
+      return res.status(200).json({ users: rows.map(toPublicUser) });
+    }
+    const rows = await sql`SELECT id, nome FROM users WHERE cargo = 'Atendente' AND status = 'ativo' ORDER BY nome ASC`;
+    return res.status(200).json({ users: rows });
+  }
+
   const admin = await requireAdmin(req, res);
   if (!admin) return;
-
-  if (req.method === "GET") {
-    const rows = await sql`SELECT * FROM users ORDER BY data_cad ASC`;
-    return res.status(200).json({ users: rows.map(toPublicUser) });
-  }
 
   if (req.method === "POST") {
     const { login, email, senha, nome, cargo } = req.body || {};

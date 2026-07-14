@@ -42,9 +42,21 @@ export default async function handler(req, res) {
   }
 
   if (req.method === "POST") {
-    const { itens, pag } = req.body || {};
+    const { itens, pag, atendenteId } = req.body || {};
     if (!Array.isArray(itens) || itens.length === 0) {
       return res.status(400).json({ error: "Nenhum item na venda." });
+    }
+
+    // Vendedor responsável pela venda — por padrão quem está logado, mas o
+    // terminal de caixa pode ficar aberto num login só o turno todo: se vier
+    // um atendenteId válido, a venda é atribuída a ele em vez de quem logou.
+    let vendedorId = u.id;
+    let vendedorNome = u.nome;
+    if (atendenteId !== undefined && atendenteId !== null && atendenteId !== "") {
+      const [selecionado] = await sql`SELECT id, nome FROM users WHERE id = ${Number(atendenteId)} AND cargo = 'Atendente' AND status = 'ativo'`;
+      if (!selecionado) return res.status(400).json({ error: "Atendente selecionado é inválido." });
+      vendedorId = selecionado.id;
+      vendedorNome = selecionado.nome;
     }
 
     // Preço de peça nunca vem do cliente — sempre recalculado a partir do banco,
@@ -95,7 +107,7 @@ export default async function handler(req, res) {
 
     const [venda] = await sql`
       INSERT INTO vendas (num, total, pag, user_id, atendente)
-      VALUES (${num}, ${total}, ${pagamento}, ${u.id}, ${u.nome})
+      VALUES (${num}, ${total}, ${pagamento}, ${vendedorId}, ${vendedorNome})
       RETURNING *
     `;
 
@@ -113,7 +125,7 @@ export default async function handler(req, res) {
     const resumo = itensValidados.map(i => `${i.qtd}×${i.nome}`).join(", ");
     await sql`
       INSERT INTO audit_log (usr, acao, det, ip, nome)
-      VALUES (${u.login}, 'VENDA', ${`${num} finalizada – ${resumo} (R$ ${total.toFixed(2)} · ${pagamento})`}, ${getClientIp(req)}, ${u.nome})
+      VALUES (${u.login}, 'VENDA', ${`${num} finalizada – ${resumo} (R$ ${total.toFixed(2)} · ${pagamento}) · Atendente: ${vendedorNome}`}, ${getClientIp(req)}, ${u.nome})
     `;
 
     const itensRows = await sql`SELECT * FROM venda_itens WHERE venda_id = ${venda.id}`;

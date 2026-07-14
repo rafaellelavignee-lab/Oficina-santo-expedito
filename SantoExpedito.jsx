@@ -114,6 +114,7 @@ export default function App() {
   const [vendas, setVendas] = useState([]);
   const [vendasLoading, setVendasLoading] = useState(false);
   const [vendasErr,     setVendasErr]     = useState("");
+  const [atendentes, setAtendentes] = useState([]);
   const [log,       setLog]       = useState([]);
   const [logLoading, setLogLoading] = useState(false);
   const [logErr,     setLogErr]     = useState("");
@@ -131,7 +132,7 @@ export default function App() {
 
   // Estados de leitura por código de barras
   const [bip,   setBip]   = useState({ cb: "", lista: [], last: null }); // entrada no estoque
-  const [venda, setVenda] = useState({ cb: "", q: "", itens: [], pag: "Dinheiro", msg: null });  // caixa / venda
+  const [venda, setVenda] = useState({ cb: "", q: "", itens: [], pag: "Dinheiro", atendenteId: "", msg: null });  // caixa / venda
   const [vendaBusy, setVendaBusy] = useState(false);
   const bipRef   = useRef(null);
   const vendaRef = useRef(null);
@@ -222,6 +223,24 @@ export default function App() {
   }, []);
 
   useEffect(() => { if (sess) fetchVendas(); }, [sess, fetchVendas]);
+
+  // Lista de atendentes pra atribuir a venda a quem vendeu de fato — usa o
+  // mesmo /api/users; quem não é Admin já recebe a versão restrita (id, nome).
+  const fetchAtendentes = useCallback(async () => {
+    try {
+      const r = await fetch("/api/users");
+      const data = await r.json();
+      if (!r.ok) return;
+      const lista = sess?.user.cargo === "Administrador"
+        ? data.users.filter(u => u.cargo === "Atendente" && u.status === "ativo")
+        : data.users;
+      setAtendentes(lista.map(u => ({ id: u.id, nome: u.nome })));
+    } catch {
+      /* silencioso — o seletor só fica sem opções, sem quebrar a tela de vendas */
+    }
+  }, [sess]);
+
+  useEffect(() => { if (sess && mod === "vendas") fetchAtendentes(); }, [sess, mod, fetchAtendentes]);
 
   const stats = useMemo(() => {
     const hoje = vendas.filter(v => sameDay(v.data, nowISO()));
@@ -516,7 +535,7 @@ export default function App() {
   const removerVenda = id => setVenda(p => ({ ...p, itens: p.itens.filter(x => x.id !== id) }));
 
   const finalizarVenda = async () => {
-    if (!venda.itens.length || vendaBusy) return;
+    if (!venda.itens.length || !venda.atendenteId || vendaBusy) return;
     setVendaBusy(true);
     const pag = venda.pag || "Dinheiro";
     try {
@@ -526,6 +545,7 @@ export default function App() {
         body: JSON.stringify({
           itens: venda.itens.map(i => ({ id: i.id, tipo: i.tipo || "peca", nome: i.nome, descricao: i.descricao, preco: i.preco, qtd: i.qtd })),
           pag,
+          atendenteId: venda.atendenteId,
         }),
       });
       const data = await r.json();
@@ -534,7 +554,9 @@ export default function App() {
       setVendas(p => [nova, ...p]);
       // Estoque foi baixado no servidor — recarrega para refletir as quantidades reais.
       fetchPecas();
-      setVenda({ cb: "", q: "", itens: [], pag: "Dinheiro", msg: { ok: true, text: `Venda ${nova.num} concluída! ${fmtCur(nova.total)} (${pag})` } });
+      // Mantém o atendente selecionado — no mesmo turno, várias vendas seguidas
+      // costumam ser do mesmo atendente, então não faz sentido pedir de novo a cada venda.
+      setVenda(p => ({ cb: "", q: "", itens: [], pag: "Dinheiro", atendenteId: p.atendenteId, msg: { ok: true, text: `Venda ${nova.num} concluída! ${fmtCur(nova.total)} (${pag})` } }));
       setTimeout(() => vendaRef.current?.focus(), 0);
     } catch {
       setVenda(p => ({ ...p, msg: { ok: false, text: "Não foi possível contatar o servidor." } }));
@@ -688,6 +710,13 @@ export default function App() {
             <p className="text-4xl font-black text-slate-800 mt-1">{fmtCur(total)}</p>
             <p className="text-xs text-slate-400 mt-1">{qtdTotal} item(s) no carrinho</p>
 
+            <p className="text-xs font-semibold text-slate-400 uppercase tracking-wide mt-5 mb-2">Atendente responsável</p>
+            <select value={venda.atendenteId} onChange={e => setVenda(p => ({ ...p, atendenteId: e.target.value }))}
+              className="w-full border border-slate-200 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-red-400 bg-white transition-colors">
+              <option value="">Selecione quem está vendendo...</option>
+              {atendentes.map(a => <option key={a.id} value={a.id}>{a.nome}</option>)}
+            </select>
+
             <p className="text-xs font-semibold text-slate-400 uppercase tracking-wide mt-5 mb-2">Forma de pagamento</p>
             <div className="grid grid-cols-2 gap-2">
               {PAGAMENTOS.map(({ id, icon: I }) => (
@@ -701,12 +730,12 @@ export default function App() {
               ))}
             </div>
 
-            <button onClick={finalizarVenda} disabled={!venda.itens.length || vendaBusy}
+            <button onClick={finalizarVenda} disabled={!venda.itens.length || !venda.atendenteId || vendaBusy}
               className="w-full mt-5 bg-emerald-600 hover:bg-emerald-700 disabled:bg-slate-200 disabled:cursor-not-allowed text-white font-semibold rounded-xl py-3.5 text-sm transition-colors flex items-center justify-center gap-2">
               <CheckCircle size={16} />{vendaBusy ? "Finalizando..." : "Finalizar venda"}
             </button>
             {venda.itens.length > 0 && (
-              <button onClick={() => setVenda({ cb: "", q: "", itens: [], pag: "Dinheiro", msg: null })}
+              <button onClick={() => setVenda(p => ({ cb: "", q: "", itens: [], pag: "Dinheiro", atendenteId: p.atendenteId, msg: null }))}
                 className="w-full mt-2 text-slate-500 hover:text-red-600 text-xs font-medium py-2 transition-colors">
                 Cancelar venda
               </button>
