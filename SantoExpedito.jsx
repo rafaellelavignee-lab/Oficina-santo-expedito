@@ -1290,7 +1290,7 @@ export default function App() {
               if (!mf.senhaAtual || !mf.novaSenha) { alert("Preencha a senha atual e a nova senha."); return; }
               if (mf.novaSenha.length < 6) { alert("A nova senha deve ter no mínimo 6 caracteres."); return; }
               if (mf.novaSenha !== mf.confirmarSenha) { alert("A confirmação não confere com a nova senha."); return; }
-              const r = await fetch("/api/auth/password", {
+              const r = await fetch("/api/auth/me", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({ senhaAtual: mf.senhaAtual, novaSenha: mf.novaSenha }),
