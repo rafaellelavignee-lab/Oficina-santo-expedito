@@ -8,13 +8,6 @@ import {
 } from "lucide-react";
 
 // ── Utilitários ───────────────────────────────────────────────────────────────
-const simHash = s => {
-  const str = s + "§SANTO_EXPEDITO§2025§SALT";
-  let h = 0;
-  for (let i = 0; i < str.length; i++) h = (Math.imul(31, h) + str.charCodeAt(i)) | 0;
-  return (h >>> 0).toString(36) + btoa(str.slice(-12)).slice(0, 16);
-};
-// ⚠️ Em produção: usar bcrypt/argon2 no servidor
 const fmtDate = d => d ? new Date(d).toLocaleDateString("pt-BR") : "—";
 const fmtDT   = d => d ? new Date(d).toLocaleString("pt-BR")      : "—";
 const fmtCur  = v => Number(v || 0).toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
@@ -37,29 +30,6 @@ const NAV = [
   { id: "estoque",   label: "Estoque & Produtos", icon: Package,      allow: ["Administrador","Estoquista","Atendente"] },
   { id: "usuarios",  label: "Usuários",           icon: Users,        allow: ["Administrador"] },
   { id: "auditoria", label: "Auditoria",          icon: Shield,       allow: ["Administrador"] },
-];
-
-// ── Dados iniciais ────────────────────────────────────────────────────────────
-const S_USERS = [
-  { id:1, login:"admin",     senha:simHash("Admin@2025"), nome:"Administrador Sistema", cargo:"Administrador", dataCad:"2025-01-01", status:"ativo", ultimoAcesso:null, fail:0 },
-  { id:2, login:"estoque",   senha:simHash("Est@2025"),   nome:"Maria Santos",          cargo:"Estoquista",    dataCad:"2025-01-03", status:"ativo", ultimoAcesso:null, fail:0 },
-  { id:3, login:"atendente", senha:simHash("Ate@2025"),   nome:"Ana Lima",              cargo:"Atendente",     dataCad:"2025-01-05", status:"ativo", ultimoAcesso:null, fail:0 },
-];
-const S_PECAS = [
-  { id:1, codigo:"P001", cb:"7891000100103", nome:"Óleo Motor 5W30",          cat:"Lubrificantes", custo:30.00,  preco:45.90,  qtd:48, min:10, forn:"Lubrax" },
-  { id:2, codigo:"P002", cb:"7891000100110", nome:"Filtro de Óleo",           cat:"Filtros",       custo:18.00,  preco:28.50,  qtd:32, min:8,  forn:"Mann Filter" },
-  { id:3, codigo:"P003", cb:"7891000100127", nome:"Pastilha Freio Dianteira", cat:"Freios",        custo:60.00,  preco:89.90,  qtd:15, min:5,  forn:"Fremax" },
-  { id:4, codigo:"P004", cb:"7891000100134", nome:"Vela de Ignição (jogo)",   cat:"Ignição",       custo:85.00,  preco:120.00, qtd:3,  min:6,  forn:"NGK" },
-  { id:5, codigo:"P005", cb:"7891000100141", nome:"Correia Dentada",          cat:"Motor",         custo:140.00, preco:195.00, qtd:8,  min:3,  forn:"Gates" },
-  { id:6, codigo:"P006", cb:"7891000100158", nome:"Pneu 185/70 R14",          cat:"Pneus",         custo:290.00, preco:380.00, qtd:2,  min:4,  forn:"Bridgestone" },
-  { id:7, codigo:"P007", cb:"7891000100165", nome:"Fluido de Freio DOT4",     cat:"Fluidos",       custo:11.00,  preco:18.50,  qtd:20, min:8,  forn:"Bosch" },
-];
-const S_VENDAS = [
-  { id:1, num:"V-0001", itens:[{id:1,nome:"Óleo Motor 5W30",qtd:2,preco:45.90}], total:91.80, pag:"Dinheiro", data:"2025-06-06T14:20:00", atendente:"Ana Lima" },
-];
-const S_LOG = [
-  { id:1, usr:"admin",     acao:"LOGIN",      det:"Login bem-sucedido",                 ts:"2025-06-06T07:55:00", ip:"192.168.1.100" },
-  { id:2, usr:"atendente", acao:"VENDA",      det:"V-0001 finalizada – 2×Óleo Motor",   ts:"2025-06-06T14:20:00", ip:"192.168.1.105" },
 ];
 
 // ── Micro-components ──────────────────────────────────────────────────────────
@@ -131,11 +101,20 @@ const Emblema = ({ size = 22 }) => (
 
 // ── App Principal ─────────────────────────────────────────────────────────────
 export default function App() {
-  const [users,  setUsers]  = useState(S_USERS);
-  const [pecas,  setPecas]  = useState(S_PECAS);
-  const [vendas, setVendas] = useState(S_VENDAS);
-  const [log,    setLog]    = useState(S_LOG);
+  const [users,       setUsers]       = useState([]);
+  const [usersLoading, setUsersLoading] = useState(false);
+  const [usersErr,    setUsersErr]    = useState("");
+  const [pecas,  setPecas]  = useState([]);
+  const [pecasLoading, setPecasLoading] = useState(false);
+  const [pecasErr,     setPecasErr]     = useState("");
+  const [vendas, setVendas] = useState([]);
+  const [vendasLoading, setVendasLoading] = useState(false);
+  const [vendasErr,     setVendasErr]     = useState("");
+  const [log,       setLog]       = useState([]);
+  const [logLoading, setLogLoading] = useState(false);
+  const [logErr,     setLogErr]     = useState("");
   const [sess,   setSess]   = useState(null);
+  const [sessChecked, setSessChecked] = useState(false);
   const [mod,    setMod]    = useState("dashboard");
   const [sbar,   setSbar]   = useState(true);
   const [modal,  setModal]  = useState(null);
@@ -144,10 +123,12 @@ export default function App() {
   const [lf,     setLf]     = useState({ login: "", senha: "" });
   const [lErr,   setLErr]   = useState("");
   const [showP,  setShowP]  = useState(false);
+  const [loginBusy, setLoginBusy] = useState(false);
 
   // Estados de leitura por código de barras
   const [bip,   setBip]   = useState({ cb: "", lista: [], last: null }); // entrada no estoque
   const [venda, setVenda] = useState({ cb: "", q: "", itens: [], pag: "Dinheiro", msg: null });  // caixa / venda
+  const [vendaBusy, setVendaBusy] = useState(false);
   const bipRef   = useRef(null);
   const vendaRef = useRef(null);
 
@@ -155,9 +136,88 @@ export default function App() {
   useEffect(() => { if (modal === "bipar") bipRef.current?.focus(); }, [modal, bip]);
   useEffect(() => { if (sess && mod === "vendas") vendaRef.current?.focus(); }, [sess, mod]);
 
-  const addLog = useCallback((usr, acao, det) => {
-    setLog(p => [...p, { id: uid(), usr, acao, det, ts: nowISO(), ip: `192.168.1.${~~(Math.random() * 200 + 50)}` }]);
+  // Restaura a sessão (cookie) ao carregar a página
+  useEffect(() => {
+    fetch("/api/auth/me")
+      .then(r => r.ok ? r.json() : null)
+      .then(data => {
+        if (data?.user) setSess({ user: data.user, since: nowISO() });
+      })
+      .finally(() => setSessChecked(true));
   }, []);
+
+  // ── Usuários (Neon, via /api/users) ──────────────────────────────────────
+  const fetchUsers = useCallback(async () => {
+    setUsersLoading(true);
+    setUsersErr("");
+    try {
+      const r = await fetch("/api/users");
+      const data = await r.json();
+      if (!r.ok) { setUsersErr(data.error || "Erro ao carregar usuários."); return; }
+      setUsers(data.users);
+    } catch {
+      setUsersErr("Não foi possível contatar o servidor.");
+    } finally {
+      setUsersLoading(false);
+    }
+  }, []);
+
+  useEffect(() => { if (sess && mod === "usuarios") fetchUsers(); }, [sess, mod, fetchUsers]);
+
+  // ── Auditoria (Neon, via /api/audit) ─────────────────────────────────────
+  const fetchLog = useCallback(async () => {
+    setLogLoading(true);
+    setLogErr("");
+    try {
+      const r = await fetch("/api/audit");
+      const data = await r.json();
+      if (!r.ok) { setLogErr(data.error || "Erro ao carregar a auditoria."); return; }
+      setLog(data.log);
+    } catch {
+      setLogErr("Não foi possível contatar o servidor.");
+    } finally {
+      setLogLoading(false);
+    }
+  }, []);
+
+  useEffect(() => { if (sess && mod === "auditoria") fetchLog(); }, [sess, mod, fetchLog]);
+
+  // ── Peças (Neon, via /api/pecas) ─────────────────────────────────────────
+  const fetchPecas = useCallback(async () => {
+    setPecasLoading(true);
+    setPecasErr("");
+    try {
+      const r = await fetch("/api/pecas");
+      const data = await r.json();
+      if (!r.ok) { setPecasErr(data.error || "Erro ao carregar produtos."); return; }
+      setPecas(data.pecas);
+    } catch {
+      setPecasErr("Não foi possível contatar o servidor.");
+    } finally {
+      setPecasLoading(false);
+    }
+  }, []);
+
+  // Estoque é usado em Dashboard, Vendas e Estoque — carrega assim que a sessão abre.
+  useEffect(() => { if (sess) fetchPecas(); }, [sess, fetchPecas]);
+
+  // ── Vendas (Neon, via /api/vendas) ───────────────────────────────────────
+  const fetchVendas = useCallback(async () => {
+    setVendasLoading(true);
+    setVendasErr("");
+    try {
+      const r = await fetch("/api/vendas");
+      const data = await r.json();
+      if (!r.ok) { setVendasErr(data.error || "Erro ao carregar vendas."); return; }
+      setVendas(data.vendas);
+    } catch {
+      setVendasErr("Não foi possível contatar o servidor.");
+    } finally {
+      setVendasLoading(false);
+    }
+  }, []);
+
+  useEffect(() => { if (sess) fetchVendas(); }, [sess, fetchVendas]);
 
   const stats = useMemo(() => {
     const hoje = vendas.filter(v => sameDay(v.data, nowISO()));
@@ -180,30 +240,39 @@ export default function App() {
   };
 
   // ── Autenticação ──────────────────────────────────────────────────────────
-  const doLogin = () => {
-    const u = users.find(x => x.login === lf.login);
-    if (!u) { setLErr("Usuário não encontrado."); return; }
-    if (u.status === "inativo") { setLErr("Conta inativa. Contate o Administrador."); return; }
-    if (u.fail >= MAX_FAIL) { setLErr(`Conta bloqueada após ${MAX_FAIL} tentativas. Contate o Administrador.`); return; }
-    if (u.senha !== simHash(lf.senha)) {
-      const f = u.fail + 1;
-      setUsers(p => p.map(x => x.id === u.id ? { ...x, fail: f } : x));
-      setLErr(`Senha incorreta. ${MAX_FAIL - f} tentativa(s) restante(s).${f >= MAX_FAIL ? " Conta BLOQUEADA." : ""}`);
-      addLog(u.login, "LOGIN_FALHA", `Tentativa ${f}/${MAX_FAIL}`);
-      return;
+  const doLogin = async () => {
+    setLoginBusy(true);
+    setLErr("");
+    try {
+      const r = await fetch("/api/auth/login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ login: lf.login, senha: lf.senha }),
+      });
+      const data = await r.json();
+      if (!r.ok) { setLErr(data.error || "Não foi possível entrar."); return; }
+      const u = data.user;
+      setSess({ user: u, since: nowISO() });
+      setLf({ login: "", senha: "" });
+      setMod(u.cargo === "Atendente" ? "vendas" : u.cargo === "Estoquista" ? "estoque" : "dashboard");
+    } catch {
+      setLErr("Não foi possível contatar o servidor.");
+    } finally {
+      setLoginBusy(false);
     }
-    const ts = nowISO();
-    setUsers(p => p.map(x => x.id === u.id ? { ...x, ultimoAcesso: ts, fail: 0 } : x));
-    setSess({ user: { ...u, fail: 0 }, since: ts });
-    setLErr(""); setLf({ login: "", senha: "" });
-    setMod(u.cargo === "Atendente" ? "vendas" : u.cargo === "Estoquista" ? "estoque" : "dashboard");
-    addLog(u.login, "LOGIN", "Login bem-sucedido");
   };
 
   const doLogout = () => {
-    addLog(sess.user.login, "LOGOUT", "Sessão encerrada");
+    fetch("/api/auth/logout", { method: "POST" });
     setSess(null); setMod("dashboard");
   };
+
+  // ── Verificando sessão existente (cookie) ────────────────────────────────
+  if (!sessChecked) return (
+    <div className="min-h-screen bg-white flex items-center justify-center">
+      <RefreshCw size={22} className="text-red-500 animate-spin" />
+    </div>
+  );
 
   // ── TELA DE LOGIN ─────────────────────────────────────────────────────────
   if (!sess) return (
@@ -255,15 +324,17 @@ export default function App() {
           <p className="text-slate-500 text-sm mb-8">Acesse com suas credenciais</p>
 
           <div className="space-y-4">
-            <Fld label="Login">
+            <Fld label="Usuário ou e-mail">
               <div className="relative">
                 <User size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
                 <input value={lf.login}
                   onChange={e => { setLf(p => ({ ...p, login: e.target.value })); setLErr(""); }}
                   onKeyDown={e => e.key === "Enter" && doLogin()}
-                  placeholder="seu.login"
+                  placeholder="seu.login ou seu@email.com"
+                  autoCapitalize="none"
                   className="w-full bg-white border border-slate-200 text-slate-800 rounded-xl pl-9 pr-3 py-3 text-sm focus:outline-none focus:border-red-500 transition-colors placeholder-slate-400" />
               </div>
+              <p className="text-[11px] text-slate-400 mt-1.5">Administradores entram com e-mail e senha.</p>
             </Fld>
 
             <Fld label="Senha">
@@ -286,29 +357,10 @@ export default function App() {
               </div>
             )}
 
-            <button onClick={doLogin}
-              className="w-full bg-red-600 hover:bg-red-700 text-white font-semibold rounded-xl py-3 text-sm transition-colors shadow-lg shadow-red-200 mt-2">
-              Entrar no Sistema
+            <button onClick={doLogin} disabled={loginBusy}
+              className="w-full bg-red-600 hover:bg-red-700 disabled:opacity-60 text-white font-semibold rounded-xl py-3 text-sm transition-colors shadow-lg shadow-red-200 mt-2">
+              {loginBusy ? "Entrando..." : "Entrar no Sistema"}
             </button>
-          </div>
-
-          {/* Credenciais demo */}
-          <div className="mt-8 p-4 bg-white rounded-xl border border-slate-200">
-            <p className="text-slate-400 text-[10px] font-bold uppercase tracking-widest mb-3">Acessos de demonstração</p>
-            <div className="space-y-1.5">
-              {[
-                ["admin",     "Admin@2025", "Administrador", "text-red-600"],
-                ["estoque",   "Est@2025",   "Estoquista",    "text-slate-500"],
-                ["atendente", "Ate@2025",   "Atendente",     "text-slate-500"],
-              ].map(([l, s, c, tc]) => (
-                <button key={l} onClick={() => { setLf({ login: l, senha: s }); setLErr(""); }}
-                  className="w-full flex justify-between items-center py-1.5 px-2 rounded-lg hover:bg-slate-50 transition-colors text-xs border border-transparent hover:border-slate-100">
-                  <span className="font-mono text-slate-500">{l} / {s}</span>
-                  <span className={`font-medium ${tc}`}>{c}</span>
-                </button>
-              ))}
-            </div>
-            <p className="text-slate-400 text-[10px] mt-2 text-center">Clique para preencher automaticamente</p>
           </div>
 
           <p className="text-slate-400 text-xs text-center mt-5">
@@ -345,7 +397,7 @@ export default function App() {
           </div>
           {vendas.length === 0
             ? <p className="text-slate-400 text-sm text-center py-6">Nenhuma venda registrada ainda</p>
-            : [...vendas].reverse().slice(0, 5).map(v => (
+            : vendas.slice(0, 5).map(v => (
               <div key={v.id} className="flex items-center justify-between py-2.5 border-b border-slate-50 last:border-0">
                 <div>
                   <p className="font-semibold text-slate-800 text-sm">{v.num}</p>
@@ -408,9 +460,23 @@ export default function App() {
       const itens = [...p.itens];
       const i = itens.findIndex(x => x.id === peca.id);
       if (i >= 0) itens[i] = { ...itens[i], qtd: itens[i].qtd + 1 };
-      else itens.push({ id: peca.id, nome: peca.nome, codigo: peca.codigo, cb: peca.cb, preco: peca.preco, qtd: 1 });
+      else itens.push({ id: peca.id, nome: peca.nome, codigo: peca.codigo, cb: peca.cb, preco: peca.preco, qtd: 1, tipo: "peca" });
       return { ...p, itens, msg: { ok: true, text: `${peca.nome} adicionado` } };
     });
+  };
+
+  const addServicoItem = () => {
+    const nome = venda.servTipo;
+    const desc = (venda.servDesc || "").trim();
+    const valor = Number(venda.servValor);
+    if (!nome) { setVenda(p => ({ ...p, msg: { ok: false, text: "Selecione Mão de obra ou Revisão." } })); return; }
+    if (!valor || valor <= 0) { setVenda(p => ({ ...p, msg: { ok: false, text: "Informe um valor válido para o serviço." } })); return; }
+    setVenda(p => ({
+      ...p,
+      itens: [...p.itens, { id: uid(), tipo: "servico", nome, descricao: desc, preco: valor, qtd: 1 }],
+      servTipo: "", servDesc: "", servValor: "",
+      msg: { ok: true, text: `${nome} adicionado` },
+    }));
   };
   const lerVenda = () => {
     const code = String(venda.cb || "").trim();
@@ -432,21 +498,32 @@ export default function App() {
   });
   const removerVenda = id => setVenda(p => ({ ...p, itens: p.itens.filter(x => x.id !== id) }));
 
-  const finalizarVenda = () => {
-    if (!venda.itens.length) return;
-    // Baixa AUTOMÁTICA do estoque
-    setPecas(prev => prev.map(x => {
-      const it = venda.itens.find(i => i.id === x.id);
-      return it ? { ...x, qtd: Math.max(0, x.qtd - it.qtd) } : x;
-    }));
-    const total = venda.itens.reduce((a, i) => a + i.preco * i.qtd, 0);
+  const finalizarVenda = async () => {
+    if (!venda.itens.length || vendaBusy) return;
+    setVendaBusy(true);
     const pag = venda.pag || "Dinheiro";
-    const nova = { id: uid(), num: `V-${String(vendas.length + 1).padStart(4, "0")}`, itens: venda.itens.map(i => ({ id:i.id, nome:i.nome, qtd:i.qtd, preco:i.preco })), total, pag, data: nowISO(), atendente: sess.user.nome };
-    setVendas(p => [...p, nova]);
-    const resumo = venda.itens.map(i => `${i.qtd}×${i.nome}`).join(", ");
-    addLog(sess.user.login, "VENDA", `${nova.num} finalizada – ${resumo} (${fmtCur(total)} · ${pag})`);
-    setVenda({ cb: "", q: "", itens: [], pag: "Dinheiro", msg: { ok: true, text: `Venda ${nova.num} concluída! ${fmtCur(total)} (${pag})` } });
-    setTimeout(() => vendaRef.current?.focus(), 0);
+    try {
+      const r = await fetch("/api/vendas", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          itens: venda.itens.map(i => ({ id: i.id, tipo: i.tipo || "peca", nome: i.nome, descricao: i.descricao, preco: i.preco, qtd: i.qtd })),
+          pag,
+        }),
+      });
+      const data = await r.json();
+      if (!r.ok) { setVenda(p => ({ ...p, msg: { ok: false, text: data.error || "Não foi possível finalizar a venda." } })); return; }
+      const nova = data.venda;
+      setVendas(p => [nova, ...p]);
+      // Estoque foi baixado no servidor — recarrega para refletir as quantidades reais.
+      fetchPecas();
+      setVenda({ cb: "", q: "", itens: [], pag: "Dinheiro", msg: { ok: true, text: `Venda ${nova.num} concluída! ${fmtCur(nova.total)} (${pag})` } });
+      setTimeout(() => vendaRef.current?.focus(), 0);
+    } catch {
+      setVenda(p => ({ ...p, msg: { ok: false, text: "Não foi possível contatar o servidor." } }));
+    } finally {
+      setVendaBusy(false);
+    }
   };
 
   const renderVendas = () => {
@@ -518,6 +595,43 @@ export default function App() {
                 );
               })()}
             </div>
+
+            {/* Serviços — mão de obra / revisão, sem baixa de estoque */}
+            <div className="mt-4 pt-4 border-t border-slate-100">
+              <label className="block text-xs font-semibold text-slate-500 mb-1.5 uppercase tracking-wide">
+                Mão de obra / Revisão
+              </label>
+              <div className="flex gap-2 mb-2">
+                <button type="button" onClick={() => setVenda(p => ({ ...p, servTipo: "Mão de obra" }))}
+                  className={`flex-1 flex items-center justify-center gap-1.5 py-2 rounded-lg text-xs font-semibold border transition-colors ${
+                    venda.servTipo === "Mão de obra"
+                      ? "bg-red-600 border-red-600 text-white"
+                      : "border-slate-200 text-slate-600 hover:bg-slate-50"}`}>
+                  <Wrench size={13} />Mão de obra
+                </button>
+                <button type="button" onClick={() => setVenda(p => ({ ...p, servTipo: "Revisão" }))}
+                  className={`flex-1 flex items-center justify-center gap-1.5 py-2 rounded-lg text-xs font-semibold border transition-colors ${
+                    venda.servTipo === "Revisão"
+                      ? "bg-red-600 border-red-600 text-white"
+                      : "border-slate-200 text-slate-600 hover:bg-slate-50"}`}>
+                  <RefreshCw size={13} />Revisão
+                </button>
+              </div>
+              <div className="flex gap-2">
+                <input value={venda.servDesc || ""} onChange={e => setVenda(p => ({ ...p, servDesc: e.target.value }))}
+                  placeholder="Descrição (opcional)"
+                  className="flex-1 min-w-0 border border-slate-200 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-red-400 bg-white transition-colors" />
+                <input type="number" min="0" step="0.01" value={venda.servValor || ""}
+                  onChange={e => setVenda(p => ({ ...p, servValor: e.target.value }))}
+                  onKeyDown={e => { if (e.key === "Enter") { e.preventDefault(); addServicoItem(); } }}
+                  placeholder="Valor"
+                  className="w-28 shrink-0 border border-slate-200 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-red-400 bg-white transition-colors" />
+                <button type="button" onClick={addServicoItem}
+                  className="shrink-0 bg-red-600 hover:bg-red-700 text-white rounded-lg px-3.5 transition-colors flex items-center justify-center">
+                  <Plus size={16} />
+                </button>
+              </div>
+            </div>
           </div>
 
           <div className="bg-white rounded-xl shadow-sm border border-slate-100 overflow-hidden">
@@ -531,8 +645,11 @@ export default function App() {
                   {venda.itens.map(i => (
                     <div key={i.id} className="flex items-center gap-3 px-4 py-3">
                       <div className="min-w-0 flex-1">
-                        <p className="text-sm font-semibold text-slate-800 truncate">{i.nome}</p>
-                        <p className="text-[11px] text-slate-400">{fmtCur(i.preco)} un · {i.codigo}</p>
+                        <p className="text-sm font-semibold text-slate-800 truncate flex items-center gap-1.5">
+                          {i.tipo === "servico" && <Wrench size={12} className="text-red-500 shrink-0" />}
+                          {i.nome}
+                        </p>
+                        <p className="text-[11px] text-slate-400">{fmtCur(i.preco)} un · {i.tipo === "servico" ? (i.descricao || "Serviço") : i.codigo}</p>
                       </div>
                       <div className="flex items-center gap-1.5 shrink-0">
                         <button onClick={() => setVendaQtd(i.id, i.qtd - 1)} className="w-7 h-7 rounded-lg border border-slate-200 text-slate-500 hover:bg-slate-50 flex items-center justify-center"><Minus size={13}/></button>
@@ -567,9 +684,9 @@ export default function App() {
               ))}
             </div>
 
-            <button onClick={finalizarVenda} disabled={!venda.itens.length}
+            <button onClick={finalizarVenda} disabled={!venda.itens.length || vendaBusy}
               className="w-full mt-5 bg-emerald-600 hover:bg-emerald-700 disabled:bg-slate-200 disabled:cursor-not-allowed text-white font-semibold rounded-xl py-3.5 text-sm transition-colors flex items-center justify-center gap-2">
-              <CheckCircle size={16} />Finalizar venda
+              <CheckCircle size={16} />{vendaBusy ? "Finalizando..." : "Finalizar venda"}
             </button>
             {venda.itens.length > 0 && (
               <button onClick={() => setVenda({ cb: "", q: "", itens: [], pag: "Dinheiro", msg: null })}
@@ -586,7 +703,7 @@ export default function App() {
           <div className="bg-white rounded-xl p-5 shadow-sm border border-slate-100">
             <h3 className="font-bold text-slate-800 text-sm mb-3">Vendas de hoje</h3>
             {(() => {
-              const hoje = [...vendas].filter(v => sameDay(v.data, nowISO())).reverse();
+              const hoje = vendas.filter(v => sameDay(v.data, nowISO()));
               if (hoje.length === 0) return <p className="text-slate-400 text-xs">Nenhuma venda hoje.</p>;
               if (!isAdmin) return <p className="text-slate-600 text-sm font-semibold">{hoje.length} venda(s) registrada(s) hoje.</p>;
               return hoje.slice(0, 6).map(v => (
@@ -604,6 +721,9 @@ export default function App() {
 
   // ── Render: Estoque ───────────────────────────────────────────────────────
   const renderEstoque = () => {
+    // Atendente só consulta o estoque (precisa disso para vender); ajustes de
+    // quantidade são de Estoquista/Administrador, e custo/preço só de Administrador.
+    const podeMovimentar = sess.user.cargo !== "Atendente";
     const fil = pecas.filter(p =>
       p.nome.toLowerCase().includes(search.toLowerCase()) ||
       p.codigo.toLowerCase().includes(search.toLowerCase()) ||
@@ -618,15 +738,22 @@ export default function App() {
             <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Produto, código, cód. barras..."
               className="border border-slate-200 rounded-lg pl-9 pr-3 py-2 text-sm focus:outline-none focus:border-red-400 bg-white w-72 transition-colors" />
           </div>
-          <BtnPrimary icon={ScanLine} onClick={() => { setBip({ cb:"", lista:[], last:null }); setModal("bipar"); }}>
-            Bipar Entrada
-          </BtnPrimary>
-          <BtnOutline icon={Plus} onClick={() => { setMf({ codigo:"",cb:"",nome:"",cat:"",custo:"",preco:"",qtd:"",min:"",forn:"" }); setModal("nova_peca"); }}>
-            Novo Produto
-          </BtnOutline>
-          <BtnOutline icon={RefreshCw} onClick={() => { setMf({ pid:"",tipo:"entrada",qtd:"",desc:"" }); setModal("mov_est"); }}>
-            Ajustar Estoque
-          </BtnOutline>
+          {podeMovimentar && (
+            <BtnPrimary icon={ScanLine} onClick={() => { setBip({ cb:"", lista:[], last:null }); setModal("bipar"); }}>
+              Bipar Entrada
+            </BtnPrimary>
+          )}
+          {isAdmin && (
+            <BtnOutline icon={Plus} onClick={() => { setMf({ codigo:"",cb:"",nome:"",cat:"",custo:"",preco:"",qtd:"",min:"",forn:"" }); setModal("nova_peca"); }}>
+              Novo Produto
+            </BtnOutline>
+          )}
+          {podeMovimentar && (
+            <BtnOutline icon={RefreshCw} onClick={() => { setMf({ pid:"",tipo:"entrada",qtd:"",desc:"" }); setModal("mov_est"); }}>
+              Ajustar Estoque
+            </BtnOutline>
+          )}
+          {pecasErr && <p className="text-xs text-red-600 font-medium flex items-center gap-1.5"><AlertCircle size={13} />{pecasErr}</p>}
         </div>
 
         {isAdmin && (
@@ -651,7 +778,9 @@ export default function App() {
         )}
 
         <div className="bg-white rounded-xl shadow-sm border border-slate-100 overflow-x-auto">
-          <table className="w-full">
+          {pecasLoading
+          ? <p className="text-center text-slate-400 text-sm py-12 flex items-center justify-center gap-2"><RefreshCw size={14} className="animate-spin" />Carregando produtos...</p>
+          : <table className="w-full">
             <thead className="bg-slate-50 border-b border-slate-100">
               <tr>
                 {[
@@ -689,10 +818,12 @@ export default function App() {
                   <Td className="font-semibold text-slate-700">{fmtCur(p.preco)}{isAdmin && <span className="block text-[11px] font-normal text-slate-400">= {fmtCur(p.preco * p.qtd)}</span>}</Td>
                   <Td className="text-xs text-slate-400">{p.forn}</Td>
                   <Td>
-                    <button onClick={() => { setMf({ ...p }); setModal("edit_peca"); }}
-                      className="p-1.5 hover:bg-slate-100 rounded text-slate-400 hover:text-slate-700 transition-colors">
-                      <Edit2 size={13} />
-                    </button>
+                    {isAdmin && (
+                      <button onClick={() => { setMf({ ...p }); setModal("edit_peca"); }}
+                        className="p-1.5 hover:bg-slate-100 rounded text-slate-400 hover:text-slate-700 transition-colors">
+                        <Edit2 size={13} />
+                      </button>
+                    )}
                   </Td>
                 </tr>
               ))}
@@ -700,29 +831,62 @@ export default function App() {
                 <tr><td colSpan={isAdmin ? 12 : 10} className="text-center text-slate-400 py-12 text-sm">Nenhum produto encontrado.</td></tr>
               )}
             </tbody>
-          </table>
+          </table>}
         </div>
       </div>
     );
   };
 
   // ── Render: Usuários (Admin) ──────────────────────────────────────────────
+  const desbloquearUser = async (u) => {
+    const r = await fetch(`/api/users/${u.id}/unlock`, { method: "POST" });
+    const data = await r.json();
+    if (!r.ok) { alert(data.error || "Não foi possível desbloquear."); return; }
+    fetchUsers();
+  };
+
+  const toggleStatusUser = async (u) => {
+    const ns = u.status === "ativo" ? "inativo" : "ativo";
+    const r = await fetch(`/api/users/${u.id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ status: ns }),
+    });
+    const data = await r.json();
+    if (!r.ok) { alert(data.error || "Não foi possível alterar o status."); return; }
+    fetchUsers();
+  };
+
+  const excluirUser = async (u) => {
+    if (!confirm(`Excluir o usuário "${u.login}"? Esta ação não pode ser desfeita.`)) return;
+    const r = await fetch(`/api/users/${u.id}`, { method: "DELETE" });
+    const data = await r.json();
+    if (!r.ok) { alert(data.error || "Não foi possível excluir."); return; }
+    fetchUsers();
+  };
+
   const renderUsuarios = () => (
     <div className="space-y-4">
-      <div className="flex justify-end">
-        <BtnPrimary icon={UserPlus} onClick={() => { setMf({ login:"",senha:"",nome:"",cargo:"Atendente" }); setModal("novo_user"); }}>
+      <div className="flex justify-between items-center">
+        {usersErr
+          ? <p className="text-xs text-red-600 font-medium flex items-center gap-1.5"><AlertCircle size={13} />{usersErr}</p>
+          : <span />}
+        <BtnPrimary icon={UserPlus} onClick={() => { setMf({ login:"",email:"",senha:"",nome:"",cargo:"Atendente" }); setModal("novo_user"); }}>
           Novo Usuário
         </BtnPrimary>
       </div>
       <div className="bg-white rounded-xl shadow-sm border border-slate-100 overflow-x-auto">
-        <table className="w-full min-w-[900px]">
+        {usersLoading
+          ? <p className="text-center text-slate-400 text-sm py-12 flex items-center justify-center gap-2"><RefreshCw size={14} className="animate-spin" />Carregando usuários...</p>
+          : <table className="w-full min-w-[900px]">
           <thead className="bg-slate-50 border-b border-slate-100">
-            <tr>{["Login","Nome","Cargo","Cadastro","Último Acesso","Tentativas","Status","Ações"].map(h => <Th key={h}>{h}</Th>)}</tr>
+            <tr>{["Login","E-mail","Nome","Cargo","Cadastro","Último Acesso","Tentativas","Status","Ações"].map(h => <Th key={h}>{h}</Th>)}</tr>
           </thead>
           <tbody className="divide-y divide-slate-50">
             {users.map(u => (
               <tr key={u.id} className="hover:bg-red-50/20 transition-colors">
                 <Td className="font-mono text-xs font-bold text-red-700">{u.login}</Td>
+                <Td className="text-xs text-slate-500">{u.email || "—"}</Td>
                 <Td className="font-semibold text-slate-800">{u.nome}</Td>
                 <Td><Badge color={u.cargo === "Administrador" ? "red" : "slate"} label={u.cargo} /></Td>
                 <Td className="text-xs text-slate-400">{fmtDate(u.dataCad)}</Td>
@@ -736,28 +900,20 @@ export default function App() {
                 <Td>
                   <div className="flex gap-1">
                     {u.fail >= MAX_FAIL && (
-                      <button title="Desbloquear conta" onClick={() => {
-                        setUsers(p => p.map(x => x.id === u.id ? { ...x, fail: 0 } : x));
-                        addLog(sess.user.login, "USER_DESBLOQUEAR", `${u.login} desbloqueado`);
-                      }} className="p-1.5 hover:bg-red-50 rounded text-red-500 hover:text-red-700 transition-colors">
+                      <button title="Desbloquear conta" onClick={() => desbloquearUser(u)}
+                        className="p-1.5 hover:bg-red-50 rounded text-red-500 hover:text-red-700 transition-colors">
                         <Key size={13} />
                       </button>
                     )}
                     {u.id !== sess.user.id && (
-                      <button title={u.status === "ativo" ? "Desativar" : "Ativar"} onClick={() => {
-                        const ns = u.status === "ativo" ? "inativo" : "ativo";
-                        setUsers(p => p.map(x => x.id === u.id ? { ...x, status: ns } : x));
-                        addLog(sess.user.login, "USER_STATUS", `${u.login} → ${ns}`);
-                      }} className="p-1.5 hover:bg-slate-100 rounded text-slate-400 hover:text-slate-700 transition-colors">
+                      <button title={u.status === "ativo" ? "Desativar" : "Ativar"} onClick={() => toggleStatusUser(u)}
+                        className="p-1.5 hover:bg-slate-100 rounded text-slate-400 hover:text-slate-700 transition-colors">
                         {u.status === "ativo" ? <X size={13} /> : <CheckCircle size={13} />}
                       </button>
                     )}
                     {u.cargo !== "Administrador" && u.id !== sess.user.id && (
-                      <button title="Excluir usuário" onClick={() => {
-                        if (!confirm(`Excluir o usuário "${u.login}"? Esta ação não pode ser desfeita.`)) return;
-                        setUsers(p => p.filter(x => x.id !== u.id));
-                        addLog(sess.user.login, "USER_EXCLUIR", `Usuário ${u.login} excluído`);
-                      }} className="p-1.5 hover:bg-red-50 rounded text-slate-400 hover:text-red-500 transition-colors">
+                      <button title="Excluir usuário" onClick={() => excluirUser(u)}
+                        className="p-1.5 hover:bg-red-50 rounded text-slate-400 hover:text-red-500 transition-colors">
                         <Trash2 size={13} />
                       </button>
                     )}
@@ -766,14 +922,14 @@ export default function App() {
               </tr>
             ))}
           </tbody>
-        </table>
+        </table>}
       </div>
     </div>
   );
 
   // ── Render: Auditoria (Admin) ─────────────────────────────────────────────
   const renderAuditoria = () => {
-    const fil = [...log].reverse().filter(l =>
+    const fil = log.filter(l =>
       l.usr.toLowerCase().includes(search.toLowerCase()) ||
       l.acao.toLowerCase().includes(search.toLowerCase()) ||
       (l.det || "").toLowerCase().includes(search.toLowerCase())
@@ -787,13 +943,18 @@ export default function App() {
     };
     return (
       <div className="space-y-4">
-        <div className="relative max-w-xs">
-          <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-          <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Filtrar log..."
-            className="border border-slate-200 rounded-lg pl-9 pr-3 py-2 text-sm w-64 focus:outline-none focus:border-red-400 bg-white transition-colors" />
+        <div className="flex items-center gap-3 flex-wrap">
+          <div className="relative max-w-xs">
+            <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+            <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Filtrar log..."
+              className="border border-slate-200 rounded-lg pl-9 pr-3 py-2 text-sm w-64 focus:outline-none focus:border-red-400 bg-white transition-colors" />
+          </div>
+          {logErr && <p className="text-xs text-red-600 font-medium flex items-center gap-1.5"><AlertCircle size={13} />{logErr}</p>}
         </div>
         <div className="bg-white rounded-xl shadow-sm border border-slate-100 overflow-x-auto">
-          <table className="w-full min-w-[700px]">
+          {logLoading
+          ? <p className="text-center text-slate-400 text-sm py-12 flex items-center justify-center gap-2"><RefreshCw size={14} className="animate-spin" />Carregando auditoria...</p>
+          : <table className="w-full min-w-[700px]">
             <thead className="bg-slate-50 border-b border-slate-100">
               <tr>{["Data / Hora","Usuário","Ação","Detalhe","IP"].map(h => <Th key={h}>{h}</Th>)}</tr>
             </thead>
@@ -811,7 +972,7 @@ export default function App() {
                 <tr><td colSpan={5} className="text-center text-slate-400 py-10 text-sm">Nenhum registro encontrado.</td></tr>
               )}
             </tbody>
-          </table>
+          </table>}
         </div>
       </div>
     );
@@ -847,14 +1008,16 @@ export default function App() {
       return { ...p, cb: "", lista, last: { ok: true, text: `${peca.nome} +1` } };
     });
   };
-  const confirmarEntrada = () => {
+  const confirmarEntrada = async () => {
     if (!bip.lista.length) { closeM(); return; }
-    setPecas(prev => prev.map(x => {
-      const it = bip.lista.find(l => l.id === x.id);
-      return it ? { ...x, qtd: x.qtd + it.qtd } : x;
-    }));
-    const resumo = bip.lista.map(l => `${l.qtd}×${l.nome}`).join(", ");
-    addLog(sess.user.login, "ESTOQUE_BIP", `Entrada por leitura: ${resumo}`);
+    const r = await fetch("/api/pecas/entrada-bip", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ itens: bip.lista.map(l => ({ id: l.id, qtd: l.qtd })) }),
+    });
+    const data = await r.json();
+    if (!r.ok) { alert(data.error || "Não foi possível dar entrada no estoque."); return; }
+    fetchPecas();
     closeM();
   };
 
@@ -956,13 +1119,17 @@ export default function App() {
           <Fld label="Fornecedor"><Inp placeholder="Nome do fornecedor" value={mf.forn || ""} onChange={e => setMf(p => ({ ...p, forn: e.target.value }))} /></Fld>
           <div className="flex justify-end gap-2 pt-2 border-t border-slate-100">
             <BtnOutline onClick={closeM}>Cancelar</BtnOutline>
-            <BtnPrimary onClick={() => {
+            <BtnPrimary onClick={async () => {
               if (!mf.codigo || !mf.nome) { alert("Preencha código e nome."); return; }
               if (!mf.custo || !mf.preco) { alert("Informe o valor de compra e o valor de venda."); return; }
-              if (mf.cb && pecas.find(p => p.cb === mf.cb)) { alert("Já existe um produto com esse código de barras."); return; }
-              const nova = { id:uid(), codigo:mf.codigo, cb:mf.cb||"", nome:mf.nome, cat:mf.cat||"Geral", custo:Number(mf.custo)||0, preco:Number(mf.preco)||0, qtd:Number(mf.qtd)||0, min:Number(mf.min)||5, forn:mf.forn||"—" };
-              setPecas(p => [...p, nova]);
-              addLog(sess.user.login, "PECA_CRIAR", `${nova.codigo} – ${nova.nome}${nova.cb ? ` (cb ${nova.cb})` : ""}`);
+              const r = await fetch("/api/pecas", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ codigo: mf.codigo, cb: mf.cb || undefined, nome: mf.nome, cat: mf.cat || undefined, custo: mf.custo, preco: mf.preco, qtd: mf.qtd, min: mf.min, forn: mf.forn || undefined }),
+              });
+              const data = await r.json();
+              if (!r.ok) { alert(data.error || "Não foi possível cadastrar o produto."); return; }
+              fetchPecas();
               closeM();
             }}>Cadastrar</BtnPrimary>
           </div>
@@ -997,11 +1164,16 @@ export default function App() {
           <Fld label="Fornecedor"><Inp value={mf.forn || ""} onChange={e => setMf(p => ({ ...p, forn: e.target.value }))} /></Fld>
           <div className="flex justify-end gap-2 pt-2 border-t border-slate-100">
             <BtnOutline onClick={closeM}>Cancelar</BtnOutline>
-            <BtnPrimary onClick={() => {
+            <BtnPrimary onClick={async () => {
               if (!mf.custo || !mf.preco) { alert("Informe o valor de compra e o valor de venda."); return; }
-              if (mf.cb && pecas.find(p => p.cb === mf.cb && p.id !== mf.id)) { alert("Já existe outro produto com esse código de barras."); return; }
-              setPecas(p => p.map(x => x.id === mf.id ? { ...x,...mf, cb:mf.cb||"", custo:Number(mf.custo), preco:Number(mf.preco), qtd:Number(mf.qtd), min:Number(mf.min) } : x));
-              addLog(sess.user.login, "PECA_EDITAR", `${mf.codigo} – ${mf.nome} atualizado`);
+              const r = await fetch(`/api/pecas/${mf.id}`, {
+                method: "PATCH",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ codigo: mf.codigo, cb: mf.cb || undefined, nome: mf.nome, cat: mf.cat || undefined, custo: mf.custo, preco: mf.preco, qtd: mf.qtd, min: mf.min, forn: mf.forn || undefined }),
+              });
+              const data = await r.json();
+              if (!r.ok) { alert(data.error || "Não foi possível salvar as alterações."); return; }
+              fetchPecas();
               closeM();
             }}>Salvar alterações</BtnPrimary>
           </div>
@@ -1031,12 +1203,17 @@ export default function App() {
           <Fld label="Motivo / Referência"><Inp placeholder="Ex: NF-001, Ajuste de inventário..." value={mf.desc || ""} onChange={e => setMf(p => ({ ...p, desc: e.target.value }))} /></Fld>
           <div className="flex justify-end gap-2 pt-2 border-t border-slate-100">
             <BtnOutline onClick={closeM}>Cancelar</BtnOutline>
-            <BtnPrimary onClick={() => {
+            <BtnPrimary onClick={async () => {
               if (!mf.pid || !mf.qtd || Number(mf.qtd) <= 0) { alert("Selecione o produto e informe a quantidade."); return; }
               const q = Number(mf.qtd);
-              setPecas(p => p.map(x => x.id === Number(mf.pid) ? { ...x, qtd: mf.tipo === "entrada" ? x.qtd + q : Math.max(0, x.qtd - q) } : x));
-              const peca = pecas.find(x => x.id === Number(mf.pid));
-              addLog(sess.user.login, "ESTOQUE_MOV", `${mf.tipo === "entrada" ? "Entrada" : "Saída"} ${q}×${peca?.nome} (${mf.desc || "sem motivo"})`);
+              const r = await fetch(`/api/pecas/${mf.pid}/movimento`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ tipo: mf.tipo, qtd: q, desc: mf.desc || undefined }),
+              });
+              const data = await r.json();
+              if (!r.ok) { alert(data.error || "Não foi possível ajustar o estoque."); return; }
+              fetchPecas();
               closeM();
             }}>Confirmar</BtnPrimary>
           </div>
@@ -1064,6 +1241,12 @@ export default function App() {
             </Fld>
           </div>
           <Fld label="Nome completo"><Inp placeholder="Nome do usuário" value={mf.nome || ""} onChange={e => setMf(p => ({ ...p, nome: e.target.value }))} /></Fld>
+          {mf.cargo === "Administrador" && (
+            <Fld label="E-mail (usado para entrar no sistema)">
+              <Inp type="email" placeholder="admin@suaoficina.com" value={mf.email || ""}
+                onChange={e => setMf(p => ({ ...p, email: e.target.value }))} />
+            </Fld>
+          )}
           <Fld label="Senha inicial">
             <div className="relative">
               <Inp type={showP ? "text" : "password"} placeholder="Mínimo 6 caracteres" className="pr-9"
@@ -1075,13 +1258,22 @@ export default function App() {
           </Fld>
           <div className="flex justify-end gap-2 pt-2 border-t border-slate-100">
             <BtnOutline onClick={closeM}>Cancelar</BtnOutline>
-            <BtnPrimary onClick={() => {
+            <BtnPrimary onClick={async () => {
               if (!mf.login || !mf.nome || !mf.senha) { alert("Preencha todos os campos."); return; }
               if (mf.senha.length < 6) { alert("Senha deve ter no mínimo 6 caracteres."); return; }
               if (users.find(u => u.login === mf.login)) { alert("Login já cadastrado. Escolha outro."); return; }
-              const novo = { id:uid(), login:mf.login, senha:simHash(mf.senha), nome:mf.nome, cargo:mf.cargo||"Atendente", dataCad:new Date().toISOString().split("T")[0], status:"ativo", ultimoAcesso:null, fail:0 };
-              setUsers(p => [...p, novo]);
-              addLog(sess.user.login, "USER_CRIAR", `Usuário ${mf.login} (${mf.cargo}) cadastrado`);
+              if (mf.cargo === "Administrador") {
+                if (!mf.email) { alert("Informe o e-mail do administrador."); return; }
+                if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(mf.email)) { alert("E-mail inválido."); return; }
+              }
+              const r = await fetch("/api/users", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ login: mf.login, email: mf.email || undefined, senha: mf.senha, nome: mf.nome, cargo: mf.cargo || "Atendente" }),
+              });
+              const data = await r.json();
+              if (!r.ok) { alert(data.error || "Não foi possível cadastrar o usuário."); return; }
+              fetchUsers();
               closeM(); setShowP(false);
             }}>Cadastrar usuário</BtnPrimary>
           </div>
