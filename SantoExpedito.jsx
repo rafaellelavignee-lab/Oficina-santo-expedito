@@ -959,6 +959,7 @@ export default function App() {
       LOGIN:"text-emerald-600", LOGOUT:"text-slate-400", LOGIN_FALHA:"text-red-600",
       VENDA:"text-emerald-600", USER_CRIAR:"text-blue-600", USER_EXCLUIR:"text-red-600",
       USER_STATUS:"text-amber-600", USER_DESBLOQUEAR:"text-blue-600", USER_EDITAR:"text-amber-600",
+      SENHA_ALTERAR:"text-amber-600",
       PECA_CRIAR:"text-blue-600", PECA_EDITAR:"text-amber-600",
       ESTOQUE_MOV:"text-blue-600", ESTOQUE_BIP:"text-blue-600",
     };
@@ -1263,6 +1264,47 @@ export default function App() {
       </ModalWrap>
     );
 
+    // ─ Alterar minha senha ─
+    if (modal === "change_password") return (
+      <ModalWrap title="Alterar Minha Senha" onClose={closeM}>
+        <div className="space-y-4">
+          <Fld label="Senha atual">
+            <Inp type="password" value={mf.senhaAtual || ""} onChange={e => setMf(p => ({ ...p, senhaAtual: e.target.value }))} />
+          </Fld>
+          <Fld label="Nova senha">
+            <div className="relative">
+              <Inp type={showP ? "text" : "password"} placeholder="Mínimo 6 caracteres" className="pr-9"
+                value={mf.novaSenha || ""} onChange={e => setMf(p => ({ ...p, novaSenha: e.target.value }))} />
+              <button onClick={() => setShowP(p => !p)} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 transition-colors">
+                {showP ? <EyeOff size={14} /> : <Eye size={14} />}
+              </button>
+            </div>
+          </Fld>
+          <Fld label="Confirmar nova senha">
+            <Inp type={showP ? "text" : "password"} value={mf.confirmarSenha || ""}
+              onChange={e => setMf(p => ({ ...p, confirmarSenha: e.target.value }))} />
+          </Fld>
+          <div className="flex justify-end gap-2 pt-2 border-t border-slate-100">
+            <BtnOutline onClick={() => { closeM(); setShowP(false); }}>Cancelar</BtnOutline>
+            <BtnPrimary onClick={async () => {
+              if (!mf.senhaAtual || !mf.novaSenha) { alert("Preencha a senha atual e a nova senha."); return; }
+              if (mf.novaSenha.length < 6) { alert("A nova senha deve ter no mínimo 6 caracteres."); return; }
+              if (mf.novaSenha !== mf.confirmarSenha) { alert("A confirmação não confere com a nova senha."); return; }
+              const r = await fetch("/api/auth/password", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ senhaAtual: mf.senhaAtual, novaSenha: mf.novaSenha }),
+              });
+              const data = await r.json();
+              if (!r.ok) { alert(data.error || "Não foi possível alterar a senha."); return; }
+              alert("Senha alterada com sucesso.");
+              closeM(); setShowP(false);
+            }}>Alterar senha</BtnPrimary>
+          </div>
+        </div>
+      </ModalWrap>
+    );
+
     // ─ Novo Usuário ─
     if (modal === "novo_user") return (
       <ModalWrap title="Cadastrar Novo Usuário" onClose={closeM}>
@@ -1367,6 +1409,10 @@ export default function App() {
               <p className="text-slate-400 text-[10px] truncate">{sess.user.cargo}</p>
             </div>
           )}
+          <button onClick={() => { setMf({}); setModal("change_password"); }} title={!sbar ? "Alterar senha" : undefined}
+            className={`w-full flex items-center gap-2 px-2.5 py-2 rounded-lg text-slate-500 hover:text-slate-700 hover:bg-slate-100 text-xs transition-colors font-medium ${!sbar ? "justify-center" : ""}`}>
+            <Key size={14} />{sbar && "Alterar senha"}
+          </button>
           <button onClick={doLogout} title={!sbar ? "Sair" : undefined}
             className={`w-full flex items-center gap-2 px-2.5 py-2 rounded-lg text-slate-500 hover:text-red-600 hover:bg-red-50 text-xs transition-colors font-medium ${!sbar ? "justify-center" : ""}`}>
             <LogOut size={14} />{sbar && "Sair do sistema"}
