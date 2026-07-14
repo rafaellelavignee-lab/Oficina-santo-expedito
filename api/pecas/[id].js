@@ -1,17 +1,20 @@
 import { sql } from "../_lib/db.js";
-import { requireRole, getClientIp } from "../_lib/auth.js";
+import { requireAuth, getClientIp } from "../_lib/auth.js";
 import { writeAudit } from "../_lib/audit.js";
 import { toPublicPeca } from "../_lib/pecas.js";
 
 export default async function handler(req, res) {
-  // Edição altera custo/preço (dado sensível) — só Administrador.
-  const u = await requireRole(req, res, ["Administrador"]);
+  const u = await requireAuth(req, res);
   if (!u) return;
 
   const id = Number(req.query.id);
   if (!id) return res.status(400).json({ error: "Id inválido." });
 
   if (req.method === "PATCH") {
+    // Edição de produto já cadastrado — só Administrador.
+    if (u.cargo !== "Administrador") {
+      return res.status(403).json({ error: "Acesso não permitido para o seu perfil." });
+    }
     const { codigo, cb, nome, cat, custo, preco, qtd, min, forn } = req.body || {};
     if (!codigo || !nome) return res.status(400).json({ error: "Informe código e nome." });
     if (custo === undefined || preco === undefined || custo === "" || preco === "") {

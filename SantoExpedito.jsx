@@ -752,11 +752,9 @@ export default function App() {
               Bipar Entrada
             </BtnPrimary>
           )}
-          {isAdmin && (
-            <BtnOutline icon={Plus} onClick={() => { setMf({ codigo:"",cb:"",nome:"",cat:"",custo:"",preco:"",qtd:"",min:"",forn:"" }); setModal("nova_peca"); }}>
-              Novo Produto
-            </BtnOutline>
-          )}
+          <BtnOutline icon={Plus} onClick={() => { setMf({ codigo:"",cb:"",nome:"",cat:"",custo:"",preco:"",qtd:"",min:"",forn:"" }); setModal("nova_peca"); }}>
+            Novo Produto
+          </BtnOutline>
           {podeMovimentar && (
             <BtnOutline icon={RefreshCw} onClick={() => { setMf({ pid:"",tipo:"entrada",qtd:"",desc:"" }); setModal("mov_est"); }}>
               Ajustar Estoque
@@ -833,12 +831,10 @@ export default function App() {
                         <Edit2 size={13} />
                       </button>
                     )}
-                    {isAdmin && (
-                      <button title="Excluir produto" onClick={() => excluirPeca(p)}
-                        className="p-1.5 hover:bg-red-50 rounded text-slate-400 hover:text-red-500 transition-colors">
-                        <Trash2 size={13} />
-                      </button>
-                    )}
+                    <button title="Excluir produto" onClick={() => excluirPeca(p)}
+                      className="p-1.5 hover:bg-red-50 rounded text-slate-400 hover:text-red-500 transition-colors">
+                      <Trash2 size={13} />
+                    </button>
                   </Td>
                 </tr>
               ))}

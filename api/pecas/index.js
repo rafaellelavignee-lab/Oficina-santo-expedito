@@ -14,10 +14,7 @@ export default async function handler(req, res) {
   }
 
   if (req.method === "POST") {
-    // Cadastro de produto define custo/preço (dado sensível) — só Administrador.
-    if (u.cargo !== "Administrador") {
-      return res.status(403).json({ error: "Acesso não permitido para o seu perfil." });
-    }
+    // Cadastro de produto (avulso ou pelo fluxo de bip) — qualquer cargo autenticado.
     const { codigo, cb, nome, cat, custo, preco, qtd, min, forn } = req.body || {};
     if (!codigo || !nome) return res.status(400).json({ error: "Informe código e nome." });
     if (custo === undefined || preco === undefined || custo === "" || preco === "") {
