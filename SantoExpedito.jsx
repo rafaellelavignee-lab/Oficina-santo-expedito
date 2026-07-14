@@ -224,6 +224,9 @@ export default function App() {
 
   const stats = useMemo(() => {
     const hoje = vendas.filter(v => sameDay(v.data, nowISO()));
+    // Separa peças de mão de obra/revisão dentro dos itens de cada venda do dia,
+    // para acompanhar o faturamento de cada frente sem misturar os dois.
+    const itensHoje = hoje.flatMap(v => v.itens);
     return {
       produtos: pecas.length,
       al: pecas.filter(p => p.qtd <= p.min).length,
@@ -232,6 +235,8 @@ export default function App() {
       vendasHoje: hoje.length,
       totalHoje: hoje.reduce((a, v) => a + v.total, 0),
       totalGeral: vendas.reduce((a, v) => a + v.total, 0),
+      totalPecasHoje: itensHoje.filter(i => i.tipo !== "servico").reduce((a, i) => a + i.preco * i.qtd, 0),
+      totalServicosHoje: itensHoje.filter(i => i.tipo === "servico").reduce((a, i) => a + i.preco * i.qtd, 0),
     };
   }, [pecas, vendas]);
 
@@ -390,9 +395,11 @@ export default function App() {
   // ── Render: Dashboard ─────────────────────────────────────────────────────
   const renderDashboard = () => (
     <div className="space-y-5">
-      <div className="grid grid-cols-2 xl:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 xl:grid-cols-3 gap-4">
         <StatCard icon={ShoppingCart} label="Vendas hoje"      value={stats.vendasHoje}        color="red"   sub={fmtCur(stats.totalHoje)} />
-        <StatCard icon={DollarSign}   label="Faturamento hoje"  value={fmtCur(stats.totalHoje)} color="green" sub="Total do dia" />
+        <StatCard icon={Package}      label="Peças hoje"       value={fmtCur(stats.totalPecasHoje)} color="blue" sub="Faturamento em produtos" />
+        <StatCard icon={Wrench}       label="Mão de obra hoje" value={fmtCur(stats.totalServicosHoje)} color="slate" sub="Serviços e revisões" />
+        <StatCard icon={DollarSign}   label="Faturamento hoje"  value={fmtCur(stats.totalHoje)} color="green" sub="Peças + mão de obra" />
         <StatCard icon={Boxes}        label="Valor em Estoque"  value={fmtCur(stats.valorEstoque)} color="blue" sub={`${stats.produtos} produtos · ${stats.unidades} un`} />
         <StatCard icon={AlertTriangle} label="Alertas Estoque"  value={stats.al}                color="amber" sub="Abaixo do mínimo" />
       </div>
