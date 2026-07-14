@@ -73,7 +73,10 @@ export default async function handler(req, res) {
       return res.status(400).json({ error: "Você não pode excluir sua própria conta." });
     }
     if (target.cargo === "Administrador") {
-      return res.status(400).json({ error: "Não é possível excluir um Administrador." });
+      const [{ count }] = await sql`SELECT count(*)::int AS count FROM users WHERE cargo = 'Administrador'`;
+      if (count <= 1) {
+        return res.status(400).json({ error: "Não é possível excluir o único Administrador do sistema." });
+      }
     }
     await sql`DELETE FROM users WHERE id = ${id}`;
     await writeAudit(admin.login, "USER_EXCLUIR", `Usuário ${target.login} excluído`, getClientIp(req));

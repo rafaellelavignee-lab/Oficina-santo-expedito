@@ -932,7 +932,7 @@ export default function App() {
                         {u.status === "ativo" ? <X size={13} /> : <CheckCircle size={13} />}
                       </button>
                     )}
-                    {u.cargo !== "Administrador" && u.id !== sess.user.id && (
+                    {u.id !== sess.user.id && (
                       <button title="Excluir usuário" onClick={() => excluirUser(u)}
                         className="p-1.5 hover:bg-red-50 rounded text-slate-400 hover:text-red-500 transition-colors">
                         <Trash2 size={13} />
