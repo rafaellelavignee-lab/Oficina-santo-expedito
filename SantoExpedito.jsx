@@ -710,17 +710,51 @@ export default function App() {
           </div>
 
           <div className="bg-white rounded-xl p-5 shadow-sm border border-slate-100">
-            <h3 className="font-bold text-slate-800 text-sm mb-3">Vendas de hoje</h3>
+            <h3 className="font-bold text-slate-800 text-sm mb-3">{isAdmin ? "Histórico de vendas" : "Vendas de hoje"}</h3>
+            {isAdmin && (
+              <div className="relative mb-3">
+                <Search size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                <input value={search} onChange={e => setSearch(e.target.value)}
+                  placeholder="Buscar por nº, atendente, pagamento ou item..."
+                  className="w-full border border-slate-200 rounded-lg pl-8 pr-3 py-2 text-xs focus:outline-none focus:border-red-400 bg-white transition-colors" />
+              </div>
+            )}
             {(() => {
-              const hoje = vendas.filter(v => sameDay(v.data, nowISO()));
-              if (hoje.length === 0) return <p className="text-slate-400 text-xs">Nenhuma venda hoje.</p>;
-              if (!isAdmin) return <p className="text-slate-600 text-sm font-semibold">{hoje.length} venda(s) registrada(s) hoje.</p>;
-              return hoje.slice(0, 6).map(v => (
-                <div key={v.id} className="flex justify-between items-center py-1.5 text-xs border-b border-slate-50 last:border-0">
-                  <span className="font-mono text-slate-500">{v.num} <span className="text-slate-300">· {v.pag || "—"}</span></span>
-                  <span className="font-semibold text-emerald-600">{fmtCur(v.total)}</span>
+              if (!isAdmin) {
+                const hoje = vendas.filter(v => sameDay(v.data, nowISO()));
+                if (hoje.length === 0) return <p className="text-slate-400 text-xs">Nenhuma venda hoje.</p>;
+                return <p className="text-slate-600 text-sm font-semibold">{hoje.length} venda(s) registrada(s) hoje.</p>;
+              }
+              const termo = search.trim().toLowerCase();
+              const lista = termo
+                ? vendas.filter(v =>
+                    v.num.toLowerCase().includes(termo) ||
+                    (v.atendente || "").toLowerCase().includes(termo) ||
+                    (v.pag || "").toLowerCase().includes(termo) ||
+                    v.itens.some(i => i.nome.toLowerCase().includes(termo))
+                  )
+                : vendas.filter(v => sameDay(v.data, nowISO()));
+              if (lista.length === 0) {
+                return <p className="text-slate-400 text-xs">{termo ? "Nenhuma venda encontrada." : "Nenhuma venda hoje."}</p>;
+              }
+              return (
+                <div className="max-h-72 overflow-y-auto divide-y divide-slate-50">
+                  {lista.slice(0, termo ? 30 : 6).map(v => (
+                    <div key={v.id} className="py-1.5 text-xs">
+                      <div className="flex justify-between items-center">
+                        <span className="font-mono text-slate-500">{v.num} <span className="text-slate-300">· {v.pag || "—"}</span></span>
+                        <span className="font-semibold text-emerald-600">{fmtCur(v.total)}</span>
+                      </div>
+                      {termo && (
+                        <div className="flex justify-between items-center mt-0.5 text-[11px] text-slate-400">
+                          <span>{v.atendente || "—"}</span>
+                          <span className="font-mono">{fmtDT(v.data)}</span>
+                        </div>
+                      )}
+                    </div>
+                  ))}
                 </div>
-              ));
+              );
             })()}
           </div>
         </div>
