@@ -776,6 +776,25 @@ export default function App() {
           v.itens.some(i => i.nome.toLowerCase().includes(termo))
         )
       : vendas;
+
+    // Resumo por atendente — quantas vendas cada um fez e quanto vendeu de
+    // peça x mão de obra, pra não precisar somar linha por linha.
+    const porAtendente = (() => {
+      const map = new Map();
+      for (const v of vendas) {
+        const nome = v.atendente || "—";
+        if (!map.has(nome)) map.set(nome, { nome, vendas: 0, pecas: 0, servicos: 0, total: 0 });
+        const e = map.get(nome);
+        e.vendas += 1;
+        e.total += v.total;
+        for (const i of v.itens) {
+          if (i.tipo === "servico") e.servicos += i.preco * i.qtd;
+          else e.pecas += i.preco * i.qtd;
+        }
+      }
+      return [...map.values()].sort((a, b) => b.total - a.total);
+    })();
+
     return (
       <div className="space-y-5">
         <div className="grid grid-cols-2 xl:grid-cols-4 gap-4">
@@ -783,6 +802,35 @@ export default function App() {
           <StatCard icon={Package}      label="Peças hoje"       value={fmtCur(stats.totalPecasHoje)}    color="blue"  sub="Faturamento em produtos" />
           <StatCard icon={Wrench}       label="Mão de obra hoje" value={fmtCur(stats.totalServicosHoje)} color="slate" sub="Serviços e revisões" />
           <StatCard icon={DollarSign}   label="Faturamento hoje" value={fmtCur(stats.totalHoje)}         color="green" sub="Peças + mão de obra" />
+        </div>
+
+        <div className="bg-white rounded-xl shadow-sm border border-slate-100 overflow-hidden">
+          <div className="px-4 py-3 border-b border-slate-100">
+            <h3 className="font-bold text-slate-800 text-sm">Por atendente</h3>
+            <p className="text-xs text-slate-400 mt-0.5">Clique num atendente para ver as vendas dele na lista abaixo.</p>
+          </div>
+          <div className="overflow-x-auto">
+            <table className="w-full min-w-[600px]">
+              <thead className="bg-slate-50 border-b border-slate-100">
+                <tr>{["Atendente","Vendas","Peças","Mão de obra","Total"].map(h => <Th key={h}>{h}</Th>)}</tr>
+              </thead>
+              <tbody className="divide-y divide-slate-50">
+                {porAtendente.map(a => (
+                  <tr key={a.nome} onClick={() => setSearch(a.nome === "—" ? "" : a.nome)}
+                    className="hover:bg-red-50/20 transition-colors cursor-pointer">
+                    <Td className="text-xs font-semibold text-slate-700">{a.nome}</Td>
+                    <Td className="text-xs text-slate-500">{a.vendas}</Td>
+                    <Td className="text-xs text-slate-500">{fmtCur(a.pecas)}</Td>
+                    <Td className="text-xs text-slate-500">{fmtCur(a.servicos)}</Td>
+                    <Td className="text-xs font-bold text-emerald-600 whitespace-nowrap">{fmtCur(a.total)}</Td>
+                  </tr>
+                ))}
+                {porAtendente.length === 0 && (
+                  <tr><td colSpan={5} className="text-center text-slate-400 py-10 text-sm">Nenhuma venda registrada ainda.</td></tr>
+                )}
+              </tbody>
+            </table>
+          </div>
         </div>
 
         <div className="bg-white rounded-xl shadow-sm border border-slate-100 overflow-hidden">
