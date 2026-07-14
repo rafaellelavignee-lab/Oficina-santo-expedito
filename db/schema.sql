@@ -11,8 +11,8 @@ CREATE TABLE IF NOT EXISTS users (
   fail          INT NOT NULL DEFAULT 0
 );
 
--- Administradores autenticam por e-mail; demais cargos, por login. Coluna já
--- existe em bancos novos (CREATE TABLE acima); ALTER cobre bancos migrados antes dela existir.
+-- Administradores autenticam por e-mail, demais cargos por login. Coluna já
+-- existe em bancos novos (CREATE TABLE acima), ALTER cobre bancos migrados antes dela existir.
 ALTER TABLE users ADD COLUMN IF NOT EXISTS email TEXT UNIQUE;
 
 CREATE TABLE IF NOT EXISTS pecas (
