@@ -31,7 +31,7 @@ export default async function handler(req, res) {
 
     const senhaHash = await bcrypt.hash(novaSenha, 12);
     await sql`UPDATE users SET senha_hash = ${senhaHash} WHERE id = ${u.id}`;
-    await writeAudit(u.login, "SENHA_ALTERAR", "Senha alterada pelo próprio usuário", getClientIp(req));
+    await writeAudit(u.login, "SENHA_ALTERAR", "Senha alterada pelo próprio usuário", getClientIp(req), u.nome);
     return res.status(200).json({ ok: true });
   }
 

@@ -28,11 +28,11 @@ export default async function handler(req, res) {
     return res.status(401).json({ error: "Usuário ou senha inválidos." });
   }
   if (u.status === "inativo") {
-    await writeAudit(u.login, "LOGIN_FALHA", "Conta inativa", ip);
+    await writeAudit(u.login, "LOGIN_FALHA", "Conta inativa", ip, u.nome);
     return res.status(403).json({ error: "Usuário desativado." });
   }
   if (u.fail >= MAX_FAIL) {
-    await writeAudit(u.login, "LOGIN_FALHA", "Conta bloqueada", ip);
+    await writeAudit(u.login, "LOGIN_FALHA", "Conta bloqueada", ip, u.nome);
     return res.status(403).json({ error: "Conta bloqueada por excesso de tentativas. Peça a um administrador para desbloquear." });
   }
 
@@ -40,13 +40,13 @@ export default async function handler(req, res) {
   if (!ok) {
     const [updated] = await sql`UPDATE users SET fail = fail + 1 WHERE id = ${u.id} RETURNING fail`;
     const remaining = Math.max(0, MAX_FAIL - updated.fail);
-    await writeAudit(u.login, "LOGIN_FALHA", `Tentativa ${updated.fail}/${MAX_FAIL}`, ip);
+    await writeAudit(u.login, "LOGIN_FALHA", `Tentativa ${updated.fail}/${MAX_FAIL}`, ip, u.nome);
     return res.status(401).json({ error: `Usuário ou senha inválidos. Tentativas restantes: ${remaining}.` });
   }
 
   const [fresh] = await sql`UPDATE users SET fail = 0, ultimo_acesso = now() WHERE id = ${u.id} RETURNING *`;
 
   setSessionCookie(res, signSession(fresh.id));
-  await writeAudit(fresh.login, "LOGIN", "Login bem-sucedido", ip);
+  await writeAudit(fresh.login, "LOGIN", "Login bem-sucedido", ip, fresh.nome);
   return res.status(200).json({ user: toPublicUser(fresh) });
 }

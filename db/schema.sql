@@ -58,5 +58,11 @@ CREATE TABLE IF NOT EXISTS audit_log (
   acao  TEXT NOT NULL,
   det   TEXT NOT NULL,
   ts    TIMESTAMPTZ NOT NULL DEFAULT now(),
-  ip    TEXT
+  ip    TEXT,
+  nome  TEXT
 );
+
+-- Nome completo do usuário no momento da ação — "usr" guarda o login (nem
+-- sempre legível), "nome" permite identificar rápido quem fez o quê. Coluna já
+-- existe em bancos novos (CREATE TABLE acima), ALTER cobre bancos migrados antes dela existir.
+ALTER TABLE audit_log ADD COLUMN IF NOT EXISTS nome TEXT;

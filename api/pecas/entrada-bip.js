@@ -29,7 +29,7 @@ export default async function handler(req, res) {
   if (!atualizadas.length) return res.status(400).json({ error: "Nenhuma peça válida encontrada." });
 
   const resumo = atualizadas.map(a => `${a.qtd}×${a.peca.nome}`).join(", ");
-  await sql`INSERT INTO audit_log (usr, acao, det, ip) VALUES (${u.login}, 'ESTOQUE_BIP', ${`Entrada por leitura: ${resumo}`}, ${getClientIp(req)})`;
+  await sql`INSERT INTO audit_log (usr, acao, det, ip, nome) VALUES (${u.login}, 'ESTOQUE_BIP', ${`Entrada por leitura: ${resumo}`}, ${getClientIp(req)}, ${u.nome})`;
 
   const includeCusto = u.cargo === "Administrador";
   return res.status(200).json({ pecas: atualizadas.map(a => toPublicPeca(a.peca, { includeCusto })) });

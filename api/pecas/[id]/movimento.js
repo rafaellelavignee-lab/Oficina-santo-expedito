@@ -28,7 +28,7 @@ export default async function handler(req, res) {
   if (!updated) return res.status(404).json({ error: "Peça não encontrada." });
 
   const det = `${tipo === "entrada" ? "Entrada" : "Saída"} ${q}×${updated.nome} (${desc || "sem motivo"})`;
-  await sql`INSERT INTO audit_log (usr, acao, det, ip) VALUES (${u.login}, 'ESTOQUE_MOV', ${det}, ${getClientIp(req)})`;
+  await sql`INSERT INTO audit_log (usr, acao, det, ip, nome) VALUES (${u.login}, 'ESTOQUE_MOV', ${det}, ${getClientIp(req)}, ${u.nome})`;
 
   return res.status(200).json({ peca: toPublicPeca(updated, { includeCusto: u.cargo === "Administrador" }) });
 }

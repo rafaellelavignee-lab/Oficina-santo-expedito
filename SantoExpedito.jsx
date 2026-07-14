@@ -972,6 +972,7 @@ export default function App() {
   const renderAuditoria = () => {
     const fil = log.filter(l =>
       l.usr.toLowerCase().includes(search.toLowerCase()) ||
+      (l.nome || "").toLowerCase().includes(search.toLowerCase()) ||
       l.acao.toLowerCase().includes(search.toLowerCase()) ||
       (l.det || "").toLowerCase().includes(search.toLowerCase())
     );
@@ -998,20 +999,21 @@ export default function App() {
           ? <p className="text-center text-slate-400 text-sm py-12 flex items-center justify-center gap-2"><RefreshCw size={14} className="animate-spin" />Carregando auditoria...</p>
           : <table className="w-full min-w-[700px]">
             <thead className="bg-slate-50 border-b border-slate-100">
-              <tr>{["Data / Hora","Usuário","Ação","Detalhe","IP"].map(h => <Th key={h}>{h}</Th>)}</tr>
+              <tr>{["Data / Hora","Usuário","Nome","Ação","Detalhe","IP"].map(h => <Th key={h}>{h}</Th>)}</tr>
             </thead>
             <tbody className="divide-y divide-slate-50">
               {fil.map(l => (
                 <tr key={l.id} className="hover:bg-red-50/20 transition-colors">
                   <Td className="text-slate-400 text-xs font-mono whitespace-nowrap">{fmtDT(l.ts)}</Td>
                   <Td className="text-xs font-bold text-red-700">{l.usr}</Td>
+                  <Td className="text-xs font-semibold text-slate-600">{l.nome || "—"}</Td>
                   <Td><span className={`text-xs font-mono font-bold ${aColor[l.acao] || "text-blue-600"}`}>{l.acao}</span></Td>
                   <Td className="text-slate-600 text-xs">{l.det}</Td>
                   <Td className="text-slate-400 text-xs font-mono">{l.ip}</Td>
                 </tr>
               ))}
               {fil.length === 0 && (
-                <tr><td colSpan={5} className="text-center text-slate-400 py-10 text-sm">Nenhum registro encontrado.</td></tr>
+                <tr><td colSpan={6} className="text-center text-slate-400 py-10 text-sm">Nenhum registro encontrado.</td></tr>
               )}
             </tbody>
           </table>}

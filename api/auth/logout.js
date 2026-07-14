@@ -8,6 +8,6 @@ export default async function handler(req, res) {
   }
   const u = await getSessionUser(req);
   clearSessionCookie(res);
-  if (u) await writeAudit(u.login, "LOGOUT", "Sessão encerrada", getClientIp(req));
+  if (u) await writeAudit(u.login, "LOGOUT", "Sessão encerrada", getClientIp(req), u.nome);
   return res.status(200).json({ ok: true });
 }

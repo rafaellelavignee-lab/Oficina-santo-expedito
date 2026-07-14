@@ -2,7 +2,7 @@ import { sql } from "../_lib/db.js";
 import { requireAdmin } from "../_lib/auth.js";
 
 function toPublicEntry(l) {
-  return { id: l.id, usr: l.usr, acao: l.acao, det: l.det, ts: l.ts, ip: l.ip };
+  return { id: l.id, usr: l.usr, nome: l.nome, acao: l.acao, det: l.det, ts: l.ts, ip: l.ip };
 }
 
 export default async function handler(req, res) {

@@ -58,7 +58,7 @@ export default async function handler(req, res) {
       if (alteraStatus) mudancas.push(`status → ${novoStatus}`);
       if (alteraEmail) mudancas.push(`e-mail → ${novoEmail || "—"}`);
       if (alteraNome) mudancas.push(`nome → ${novoNome}`);
-      await writeAudit(admin.login, acao, `${updated.login}: ${mudancas.join(", ")}`, getClientIp(req));
+      await writeAudit(admin.login, acao, `${updated.login}: ${mudancas.join(", ")}`, getClientIp(req), admin.nome);
       return res.status(200).json({ user: toPublicUser(updated) });
     } catch (e) {
       if (String(e.message).includes("duplicate key") || String(e.message).includes("unique")) {
@@ -79,7 +79,7 @@ export default async function handler(req, res) {
       }
     }
     await sql`DELETE FROM users WHERE id = ${id}`;
-    await writeAudit(admin.login, "USER_EXCLUIR", `Usuário ${target.login} excluído`, getClientIp(req));
+    await writeAudit(admin.login, "USER_EXCLUIR", `Usuário ${target.login} excluído`, getClientIp(req), admin.nome);
     return res.status(200).json({ ok: true });
   }
 

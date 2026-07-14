@@ -39,7 +39,7 @@ export default async function handler(req, res) {
         VALUES (${String(login).trim()}, ${emailNorm || null}, ${senhaHash}, ${nome}, ${cargo})
         RETURNING *
       `;
-      await writeAudit(admin.login, "USER_CRIAR", `Usuário ${novo.login} (${novo.cargo}) cadastrado`, getClientIp(req));
+      await writeAudit(admin.login, "USER_CRIAR", `Usuário ${novo.login} (${novo.cargo}) cadastrado`, getClientIp(req), admin.nome);
       return res.status(201).json({ user: toPublicUser(novo) });
     } catch (e) {
       if (String(e.message).includes("duplicate key") || String(e.message).includes("unique")) {

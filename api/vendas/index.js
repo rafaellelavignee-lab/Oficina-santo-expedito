@@ -112,8 +112,8 @@ export default async function handler(req, res) {
 
     const resumo = itensValidados.map(i => `${i.qtd}×${i.nome}`).join(", ");
     await sql`
-      INSERT INTO audit_log (usr, acao, det, ip)
-      VALUES (${u.login}, 'VENDA', ${`${num} finalizada – ${resumo} (R$ ${total.toFixed(2)} · ${pagamento})`}, ${getClientIp(req)})
+      INSERT INTO audit_log (usr, acao, det, ip, nome)
+      VALUES (${u.login}, 'VENDA', ${`${num} finalizada – ${resumo} (R$ ${total.toFixed(2)} · ${pagamento})`}, ${getClientIp(req)}, ${u.nome})
     `;
 
     const itensRows = await sql`SELECT * FROM venda_itens WHERE venda_id = ${venda.id}`;
