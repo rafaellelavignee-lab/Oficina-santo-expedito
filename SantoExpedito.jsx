@@ -719,6 +719,15 @@ export default function App() {
     );
   };
 
+  const excluirPeca = async (p) => {
+    if (!confirm(`Excluir o produto "${p.nome}" (${p.codigo})? Esta ação não pode ser desfeita.`)) return false;
+    const r = await fetch(`/api/pecas/${p.id}`, { method: "DELETE" });
+    const data = await r.json();
+    if (!r.ok) { alert(data.error || "Não foi possível excluir o produto."); return false; }
+    fetchPecas();
+    return true;
+  };
+
   // ── Render: Estoque ───────────────────────────────────────────────────────
   const renderEstoque = () => {
     // Atendente só consulta o estoque (precisa disso para vender); ajustes de
@@ -822,6 +831,12 @@ export default function App() {
                       <button onClick={() => { setMf({ ...p }); setModal("edit_peca"); }}
                         className="p-1.5 hover:bg-slate-100 rounded text-slate-400 hover:text-slate-700 transition-colors">
                         <Edit2 size={13} />
+                      </button>
+                    )}
+                    {isAdmin && (
+                      <button title="Excluir produto" onClick={() => excluirPeca(p)}
+                        className="p-1.5 hover:bg-red-50 rounded text-slate-400 hover:text-red-500 transition-colors">
+                        <Trash2 size={13} />
                       </button>
                     )}
                   </Td>
@@ -960,7 +975,7 @@ export default function App() {
       VENDA:"text-emerald-600", USER_CRIAR:"text-blue-600", USER_EXCLUIR:"text-red-600",
       USER_STATUS:"text-amber-600", USER_DESBLOQUEAR:"text-blue-600", USER_EDITAR:"text-amber-600",
       SENHA_ALTERAR:"text-amber-600",
-      PECA_CRIAR:"text-blue-600", PECA_EDITAR:"text-amber-600",
+      PECA_CRIAR:"text-blue-600", PECA_EDITAR:"text-amber-600", PECA_EXCLUIR:"text-red-600",
       ESTOQUE_MOV:"text-blue-600", ESTOQUE_BIP:"text-blue-600",
     };
     return (
@@ -1184,20 +1199,26 @@ export default function App() {
             <Fld label="Mínimo"><Inp type="number" value={mf.min || ""} onChange={e => setMf(p => ({ ...p, min: e.target.value }))} /></Fld>
           </div>
           <Fld label="Fornecedor"><Inp value={mf.forn || ""} onChange={e => setMf(p => ({ ...p, forn: e.target.value }))} /></Fld>
-          <div className="flex justify-end gap-2 pt-2 border-t border-slate-100">
-            <BtnOutline onClick={closeM}>Cancelar</BtnOutline>
-            <BtnPrimary onClick={async () => {
-              if (!mf.custo || !mf.preco) { alert("Informe o valor de compra e o valor de venda."); return; }
-              const r = await fetch(`/api/pecas/${mf.id}`, {
-                method: "PATCH",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ codigo: mf.codigo, cb: mf.cb || undefined, nome: mf.nome, cat: mf.cat || undefined, custo: mf.custo, preco: mf.preco, qtd: mf.qtd, min: mf.min, forn: mf.forn || undefined }),
-              });
-              const data = await r.json();
-              if (!r.ok) { alert(data.error || "Não foi possível salvar as alterações."); return; }
-              fetchPecas();
-              closeM();
-            }}>Salvar alterações</BtnPrimary>
+          <div className="flex justify-between items-center gap-2 pt-2 border-t border-slate-100">
+            <button onClick={async () => { if (await excluirPeca(mf)) closeM(); }}
+              className="text-red-500 hover:text-red-700 text-xs font-semibold flex items-center gap-1.5 transition-colors">
+              <Trash2 size={13} />Excluir produto
+            </button>
+            <div className="flex gap-2">
+              <BtnOutline onClick={closeM}>Cancelar</BtnOutline>
+              <BtnPrimary onClick={async () => {
+                if (!mf.custo || !mf.preco) { alert("Informe o valor de compra e o valor de venda."); return; }
+                const r = await fetch(`/api/pecas/${mf.id}`, {
+                  method: "PATCH",
+                  headers: { "Content-Type": "application/json" },
+                  body: JSON.stringify({ codigo: mf.codigo, cb: mf.cb || undefined, nome: mf.nome, cat: mf.cat || undefined, custo: mf.custo, preco: mf.preco, qtd: mf.qtd, min: mf.min, forn: mf.forn || undefined }),
+                });
+                const data = await r.json();
+                if (!r.ok) { alert(data.error || "Não foi possível salvar as alterações."); return; }
+                fetchPecas();
+                closeM();
+              }}>Salvar alterações</BtnPrimary>
+            </div>
           </div>
         </div>
       </ModalWrap>
