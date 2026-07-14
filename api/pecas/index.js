@@ -14,7 +14,11 @@ export default async function handler(req, res) {
   }
 
   if (req.method === "POST") {
-    // Cadastro de produto (avulso ou pelo fluxo de bip) — qualquer cargo autenticado.
+    // Cadastro de produto (avulso ou pelo fluxo de bip) — qualquer cargo autenticado,
+    // exceto Atendente (só maria.eloisa tem acesso ao Estoque entre os Atendentes).
+    if (u.cargo === "Atendente" && u.login !== "maria.eloisa") {
+      return res.status(403).json({ error: "Acesso não permitido para o seu perfil." });
+    }
     const { codigo, cb, nome, cat, custo, preco, qtd, min, forn } = req.body || {};
     if (!codigo || !nome) return res.status(400).json({ error: "Informe código e nome." });
     if (custo === undefined || preco === undefined || custo === "" || preco === "") {
@@ -31,7 +35,7 @@ export default async function handler(req, res) {
         VALUES (${codigo}, ${cb || null}, ${nome}, ${cat || "Geral"}, ${custoNum}, ${precoNum}, ${qtdNum}, ${minNum}, ${forn || "—"})
         RETURNING *
       `;
-      await writeAudit(u.login, "PECA_CRIAR", `Peça ${novo.codigo} (${novo.nome}) cadastrada`, getClientIp(req));
+      await writeAudit(u.login, "PECA_CRIAR", `Peça ${novo.codigo} (${novo.nome}) cadastrada`, getClientIp(req), u.nome);
       return res.status(201).json({ peca: toPublicPeca(novo, { includeCusto: true }) });
     } catch (e) {
       if (String(e.message).includes("duplicate key") || String(e.message).includes("unique")) {

@@ -36,7 +36,7 @@ export default async function handler(req, res) {
         RETURNING *
       `;
       if (!updated) return res.status(404).json({ error: "Peça não encontrada." });
-      await writeAudit(u.login, "PECA_EDITAR", `Peça ${updated.codigo} (${updated.nome}) editada`, getClientIp(req));
+      await writeAudit(u.login, "PECA_EDITAR", `Peça ${updated.codigo} (${updated.nome}) editada`, getClientIp(req), u.nome);
       return res.status(200).json({ peca: toPublicPeca(updated, { includeCusto: true }) });
     } catch (e) {
       if (String(e.message).includes("duplicate key") || String(e.message).includes("unique")) {
@@ -50,9 +50,13 @@ export default async function handler(req, res) {
   }
 
   if (req.method === "DELETE") {
+    // Exclusão de produto — mesma regra do cadastro: Atendente só se for maria.eloisa.
+    if (u.cargo === "Atendente" && u.login !== "maria.eloisa") {
+      return res.status(403).json({ error: "Acesso não permitido para o seu perfil." });
+    }
     const [deleted] = await sql`DELETE FROM pecas WHERE id = ${id} RETURNING *`;
     if (!deleted) return res.status(404).json({ error: "Peça não encontrada." });
-    await writeAudit(u.login, "PECA_EXCLUIR", `Peça ${deleted.codigo} (${deleted.nome}) excluída`, getClientIp(req));
+    await writeAudit(u.login, "PECA_EXCLUIR", `Peça ${deleted.codigo} (${deleted.nome}) excluída`, getClientIp(req), u.nome);
     return res.status(200).json({ ok: true });
   }
 

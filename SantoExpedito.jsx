@@ -17,6 +17,9 @@ const sameDay = (a, b) => new Date(a).toDateString() === new Date(b).toDateStrin
 
 // ── Constantes ────────────────────────────────────────────────────────────────
 const ROLES = ["Administrador", "Estoquista", "Atendente"];
+// Exceção pontual: entre os Atendentes, só esse login pode acessar o Estoque.
+// Os demais (atuais e futuros cadastros) não têm acesso ao módulo.
+const ATENDENTE_COM_ACESSO_ESTOQUE = "maria.eloisa";
 const MAX_FAIL = 5;
 const PAGAMENTOS = [
   { id: "Dinheiro", icon: Banknote },
@@ -373,7 +376,13 @@ export default function App() {
 
   // ── SISTEMA AUTENTICADO ───────────────────────────────────────────────────
   const isAdmin = sess.user.cargo === "Administrador";
-  const visNav  = NAV.filter(n => n.allow.includes(sess.user.cargo));
+  const visNav  = NAV.filter(n => {
+    if (!n.allow.includes(sess.user.cargo)) return false;
+    if (n.id === "estoque" && sess.user.cargo === "Atendente") {
+      return sess.user.login === ATENDENTE_COM_ACESSO_ESTOQUE;
+    }
+    return true;
+  });
   const curNav  = visNav.find(n => n.id === mod);
   const closeM  = () => setModal(null);
   const goMod   = (id) => { setMod(id); setSearch(""); };
@@ -1453,7 +1462,7 @@ export default function App() {
           </div>
 
           <div className="flex items-center gap-3">
-            {stats.al > 0 && (
+            {stats.al > 0 && visNav.some(n => n.id === "estoque") && (
               <button onClick={() => goMod("estoque")}
                 className="flex items-center gap-1.5 text-xs bg-red-50 text-red-700 border border-red-200 px-3 py-1.5 rounded-full font-semibold hover:bg-red-100 transition-colors">
                 <AlertTriangle size={11} />{stats.al} alerta{stats.al > 1 ? "s" : ""}
