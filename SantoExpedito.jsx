@@ -2,9 +2,9 @@ import { useState, useCallback, useMemo, useRef, useEffect } from "react";
 import {
   Wrench, Package, Users, Shield, LogOut, Plus, Edit2, Trash2,
   AlertTriangle, CheckCircle, X, Eye, EyeOff, Lock, User, Home, Search,
-  RefreshCw, ChevronRight, Key, UserPlus, Menu, AlertCircle,
+  RefreshCw, ChevronLeft, ChevronRight, Key, UserPlus, Menu, AlertCircle,
   Barcode, ScanLine, ShoppingCart, Cog, Receipt, Minus, DollarSign, Boxes,
-  Banknote, CreditCard, QrCode
+  Banknote, CreditCard, QrCode, CalendarRange
 } from "lucide-react";
 
 // ── Utilitários ───────────────────────────────────────────────────────────────
@@ -14,6 +14,14 @@ const fmtCur  = v => Number(v || 0).toLocaleString("pt-BR", { style: "currency",
 const nowISO  = () => new Date().toISOString();
 const uid     = () => Date.now() + Math.random();
 const sameDay = (a, b) => new Date(a).toDateString() === new Date(b).toDateString();
+// Segunda-feira 00:00 da semana de referência — usado no Resumo Semanal.
+const startOfWeek = (d) => {
+  const date = new Date(d);
+  date.setHours(0, 0, 0, 0);
+  const dia = date.getDay();
+  date.setDate(date.getDate() + (dia === 0 ? -6 : 1 - dia));
+  return date;
+};
 
 // ── Constantes ────────────────────────────────────────────────────────────────
 const ROLES = ["Administrador", "Estoquista", "Atendente"];
@@ -34,6 +42,7 @@ const NAV = [
   { id: "dashboard", label: "Dashboard",          icon: Home,         allow: ["Administrador"] },
   { id: "vendas",    label: "Vendas Diárias",     icon: ShoppingCart, allow: ["Administrador","Atendente"] },
   { id: "acompanhamento", label: "Acompanhar Vendas", icon: Receipt,  allow: ["Administrador"] },
+  { id: "semanal",   label: "Resumo Semanal",     icon: CalendarRange, allow: ["Administrador"] },
   { id: "estoque",   label: "Estoque & Produtos", icon: Package,      allow: ["Administrador","Estoquista","Atendente"] },
   { id: "usuarios",  label: "Usuários",           icon: Users,        allow: ["Administrador"] },
   { id: "auditoria", label: "Auditoria",          icon: Shield,       allow: ["Administrador"] },
@@ -139,6 +148,7 @@ export default function App() {
   const [vendaBusy, setVendaBusy] = useState(false);
   const [editVendaId, setEditVendaId] = useState(null);       // venda com atendente em edição, na aba Acompanhar Vendas
   const [editVendaBusy, setEditVendaBusy] = useState(false);
+  const [semanaOffset, setSemanaOffset] = useState(0);         // 0 = semana atual, -1 = anterior etc. — Resumo Semanal
   const bipRef   = useRef(null);
   const vendaRef = useRef(null);
 
@@ -190,7 +200,8 @@ export default function App() {
     }
   }, []);
 
-  useEffect(() => { if (sess && mod === "auditoria") fetchLog(); }, [sess, mod, fetchLog]);
+  // Resumo Semanal também usa o log de auditoria (movimentações de estoque na semana).
+  useEffect(() => { if (sess && (mod === "auditoria" || mod === "semanal")) fetchLog(); }, [sess, mod, fetchLog]);
 
   // ── Peças (Neon, via /api/pecas) ─────────────────────────────────────────
   const fetchPecas = useCallback(async () => {
@@ -290,6 +301,16 @@ export default function App() {
       totalServicosHoje: itensHoje.filter(i => i.tipo === "servico").reduce((a, i) => a + i.preco * i.qtd, 0),
     };
   }, [pecas, vendas]);
+
+  // Semana selecionada no Resumo Semanal — segunda a domingo.
+  const semana = useMemo(() => {
+    const inicio = startOfWeek(new Date());
+    inicio.setDate(inicio.getDate() + semanaOffset * 7);
+    const fim = new Date(inicio);
+    fim.setDate(fim.getDate() + 6);
+    fim.setHours(23, 59, 59, 999);
+    return { inicio, fim };
+  }, [semanaOffset]);
 
   // Busca produto pelo código de barras OU código interno
   const acharPeca = (code) => {
@@ -1213,6 +1234,158 @@ export default function App() {
     );
   };
 
+  // ── Render: Resumo Semanal (Admin) ────────────────────────────────────────
+  const renderSemanal = () => {
+    const { inicio, fim } = semana;
+    const vendasSemana = vendas.filter(v => {
+      const d = new Date(v.data);
+      return d >= inicio && d <= fim;
+    });
+    const itensSemana = vendasSemana.flatMap(v => v.itens);
+    const totalPecas = itensSemana.filter(i => i.tipo !== "servico").reduce((a, i) => a + i.preco * i.qtd, 0);
+    const totalServicos = itensSemana.filter(i => i.tipo === "servico").reduce((a, i) => a + i.preco * i.qtd, 0);
+    const totalSemana = vendasSemana.reduce((a, v) => a + v.total, 0);
+
+    const porAtendente = (() => {
+      const map = new Map();
+      for (const v of vendasSemana) {
+        const nome = v.atendente || "—";
+        if (!map.has(nome)) map.set(nome, { nome, vendas: 0, total: 0 });
+        const e = map.get(nome);
+        e.vendas += 1;
+        e.total += v.total;
+      }
+      return [...map.values()].sort((a, b) => b.total - a.total);
+    })();
+
+    const porPagamento = (() => {
+      const map = new Map();
+      for (const v of vendasSemana) {
+        const pag = v.pag || "—";
+        if (!map.has(pag)) map.set(pag, { pag, vendas: 0, total: 0 });
+        const e = map.get(pag);
+        e.vendas += 1;
+        e.total += v.total;
+      }
+      return [...map.values()].sort((a, b) => b.total - a.total);
+    })();
+
+    const baixoEstoque = pecas.filter(p => p.qtd <= p.min);
+    // Log de auditoria só traz os 500 registros mais recentes (mesma limitação da aba Auditoria),
+    // então em lojas com muito movimento semanas antigas podem ficar incompletas aqui.
+    const movimentosSemana = log.filter(l => {
+      if (l.acao !== "ESTOQUE_MOV" && l.acao !== "ESTOQUE_BIP") return false;
+      const d = new Date(l.ts);
+      return d >= inicio && d <= fim;
+    });
+
+    const ehSemanaAtual = semanaOffset === 0;
+
+    return (
+      <div className="space-y-5">
+        <div className="flex items-center justify-between flex-wrap gap-3">
+          <div className="flex items-center gap-2">
+            <button onClick={() => setSemanaOffset(o => o - 1)}
+              className="p-2 border border-slate-200 rounded-lg hover:bg-slate-50 text-slate-600 transition-colors">
+              <ChevronLeft size={16} />
+            </button>
+            <div className="text-sm font-semibold text-slate-700 min-w-[170px] text-center">
+              {fmtDate(inicio)} – {fmtDate(fim)}
+              {ehSemanaAtual && <span className="block text-[11px] font-normal text-slate-400">Semana atual</span>}
+            </div>
+            <button onClick={() => setSemanaOffset(o => o + 1)} disabled={ehSemanaAtual}
+              className="p-2 border border-slate-200 rounded-lg hover:bg-slate-50 text-slate-600 transition-colors disabled:opacity-30 disabled:cursor-not-allowed">
+              <ChevronRight size={16} />
+            </button>
+          </div>
+          {!ehSemanaAtual && (
+            <button onClick={() => setSemanaOffset(0)} className="text-xs font-semibold text-red-600 hover:text-red-700 transition-colors">
+              Voltar para semana atual
+            </button>
+          )}
+        </div>
+
+        <div className="grid grid-cols-2 xl:grid-cols-4 gap-4">
+          <StatCard icon={ShoppingCart}  label="Vendas na semana"         value={vendasSemana.length} color="red"   sub={fmtCur(totalSemana)} />
+          <StatCard icon={Package}       label="Peças"                    value={fmtCur(totalPecas)}    color="blue"  sub="Faturamento em produtos" />
+          <StatCard icon={Wrench}        label="Mão de obra"              value={fmtCur(totalServicos)} color="slate" sub="Serviços e revisões" />
+          <StatCard icon={AlertTriangle} label="Estoque abaixo do mínimo" value={baixoEstoque.length}   color="amber" sub={`${movimentosSemana.length} movimentação(ões) na semana`} />
+        </div>
+
+        <div className="bg-white rounded-xl shadow-sm border border-slate-100 overflow-hidden">
+          <div className="px-4 py-3 border-b border-slate-100">
+            <h3 className="font-bold text-slate-800 text-sm">Por atendente</h3>
+          </div>
+          <div className="overflow-x-auto">
+            <table className="w-full min-w-[500px]">
+              <thead className="bg-slate-50 border-b border-slate-100">
+                <tr>{["Atendente","Vendas","Total"].map(h => <Th key={h}>{h}</Th>)}</tr>
+              </thead>
+              <tbody className="divide-y divide-slate-50">
+                {porAtendente.map(a => (
+                  <tr key={a.nome} className="hover:bg-red-50/20 transition-colors">
+                    <Td className="text-xs font-semibold text-slate-700">{a.nome}</Td>
+                    <Td className="text-xs text-slate-500">{a.vendas}</Td>
+                    <Td className="text-xs font-bold text-emerald-600">{fmtCur(a.total)}</Td>
+                  </tr>
+                ))}
+                {porAtendente.length === 0 && (
+                  <tr><td colSpan={3} className="text-center text-slate-400 py-8 text-sm">Nenhuma venda nesta semana.</td></tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
+          <div className="bg-white rounded-xl shadow-sm border border-slate-100 overflow-hidden">
+            <div className="px-4 py-3 border-b border-slate-100">
+              <h3 className="font-bold text-slate-800 text-sm">Formas de pagamento</h3>
+            </div>
+            <div className="overflow-x-auto">
+              <table className="w-full min-w-[380px]">
+                <thead className="bg-slate-50 border-b border-slate-100">
+                  <tr>{["Pagamento","Vendas","Total"].map(h => <Th key={h}>{h}</Th>)}</tr>
+                </thead>
+                <tbody className="divide-y divide-slate-50">
+                  {porPagamento.map(p => (
+                    <tr key={p.pag} className="hover:bg-red-50/20 transition-colors">
+                      <Td className="text-xs font-semibold text-slate-700">{p.pag}</Td>
+                      <Td className="text-xs text-slate-500">{p.vendas}</Td>
+                      <Td className="text-xs font-bold text-emerald-600">{fmtCur(p.total)}</Td>
+                    </tr>
+                  ))}
+                  {porPagamento.length === 0 && (
+                    <tr><td colSpan={3} className="text-center text-slate-400 py-8 text-sm">Nenhuma venda nesta semana.</td></tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          <div className="bg-white rounded-xl shadow-sm border border-slate-100 overflow-hidden">
+            <div className="px-4 py-3 border-b border-slate-100">
+              <h3 className="font-bold text-slate-800 text-sm">Estoque abaixo do mínimo</h3>
+              <p className="text-xs text-slate-400 mt-0.5">Situação atual do estoque — não é retroativo à semana selecionada.</p>
+            </div>
+            <div className="max-h-72 overflow-y-auto divide-y divide-slate-50">
+              {baixoEstoque.length === 0
+                ? <p className="text-center text-slate-400 py-8 text-sm">Nenhum produto abaixo do mínimo.</p>
+                : baixoEstoque.map(p => (
+                  <div key={p.id} className="flex justify-between items-center px-4 py-2.5 text-xs">
+                    <span className="font-semibold text-slate-700">{p.nome} <span className="text-slate-400 font-mono">({p.codigo})</span></span>
+                    <span className="text-red-600 font-bold whitespace-nowrap">{p.qtd} / mín {p.min}</span>
+                  </div>
+                ))}
+            </div>
+          </div>
+        </div>
+
+        {vendasErr && <p className="text-xs text-red-600 font-medium flex items-center gap-1.5"><AlertCircle size={13} />{vendasErr}</p>}
+      </div>
+    );
+  };
+
   // ── Render: Conteúdo do módulo ────────────────────────────────────────────
   const renderContent = () => {
     if (!visNav.find(n => n.id === mod)) return <div className="text-slate-400 text-sm p-8 text-center">Módulo não disponível para o seu perfil.</div>;
@@ -1220,6 +1393,7 @@ export default function App() {
       case "dashboard": return renderDashboard();
       case "vendas":    return renderVendas();
       case "acompanhamento": return renderAcompanhamento();
+      case "semanal":   return renderSemanal();
       case "estoque":   return renderEstoque();
       case "usuarios":  return renderUsuarios();
       case "auditoria": return renderAuditoria();
