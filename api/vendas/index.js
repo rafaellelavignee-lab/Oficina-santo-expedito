@@ -1,33 +1,9 @@
 import { sql } from "../_lib/db.js";
 import { requireAuth, getClientIp } from "../_lib/auth.js";
+import { toPublicVenda, LOGIN_CAIXA_COMPARTILHADO } from "../_lib/vendas.js";
 
 const SERVICOS = ["Mão de obra", "Revisão"];
 const PAGAMENTOS = ["Dinheiro", "PIX", "Débito", "Crédito"];
-
-// Mesma exceção de api/users/index.js: o caixa compartilhado não é uma pessoa
-// vendendo de verdade, então não pode ser escolhido como atendente responsável.
-const LOGIN_CAIXA_COMPARTILHADO = "caixa-loja";
-
-function toPublicVenda(v, itens) {
-  return {
-    id: v.id,
-    num: v.num,
-    total: Number(v.total),
-    pag: v.pag,
-    data: v.data,
-    atendente: v.atendente,
-    itens: itens.map(i => ({
-      id: i.id,
-      pecaId: i.peca_id,
-      tipo: i.tipo,
-      nome: i.nome,
-      codigo: i.codigo,
-      descricao: i.descricao,
-      preco: Number(i.preco),
-      qtd: i.qtd,
-    })),
-  };
-}
 
 export default async function handler(req, res) {
   const u = await requireAuth(req, res);

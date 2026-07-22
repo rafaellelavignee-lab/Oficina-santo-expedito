@@ -137,6 +137,8 @@ export default function App() {
   const [bip,   setBip]   = useState({ cb: "", lista: [], last: null }); // entrada no estoque
   const [venda, setVenda] = useState({ cb: "", q: "", itens: [], pag: "Dinheiro", atendenteId: "", msg: null });  // caixa / venda
   const [vendaBusy, setVendaBusy] = useState(false);
+  const [editVendaId, setEditVendaId] = useState(null);       // venda com atendente em edição, na aba Acompanhar Vendas
+  const [editVendaBusy, setEditVendaBusy] = useState(false);
   const bipRef   = useRef(null);
   const vendaRef = useRef(null);
 
@@ -247,7 +249,29 @@ export default function App() {
     }
   }, [sess]);
 
-  useEffect(() => { if (sess && mod === "vendas") fetchAtendentes(); }, [sess, mod, fetchAtendentes]);
+  useEffect(() => { if (sess && (mod === "vendas" || mod === "acompanhamento")) fetchAtendentes(); }, [sess, mod, fetchAtendentes]);
+
+  // Corrige o atendente de uma venda já registrada (ex.: caixa esqueceu de
+  // trocar o seletor antes de vender) — só o Administrador vê essa opção.
+  const salvarAtendenteVenda = async (vendaId, atendenteId) => {
+    if (!atendenteId) return;
+    setEditVendaBusy(true);
+    try {
+      const r = await fetch(`/api/vendas/${vendaId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ atendenteId }),
+      });
+      const data = await r.json();
+      if (!r.ok) { alert(data.error || "Não foi possível alterar o atendente."); return; }
+      setVendas(p => p.map(v => v.id === vendaId ? data.venda : v));
+      setEditVendaId(null);
+    } catch {
+      alert("Não foi possível contatar o servidor.");
+    } finally {
+      setEditVendaBusy(false);
+    }
+  };
 
   const stats = useMemo(() => {
     const hoje = vendas.filter(v => sameDay(v.data, nowISO()));
@@ -862,7 +886,23 @@ export default function App() {
                   <tr key={v.id} className="hover:bg-red-50/20 transition-colors">
                     <Td className="text-slate-400 text-xs font-mono whitespace-nowrap">{fmtDT(v.data)}</Td>
                     <Td className="text-xs font-bold text-red-700">{v.num}</Td>
-                    <Td className="text-xs font-semibold text-slate-600">{v.atendente || "—"}</Td>
+                    <Td className="text-xs font-semibold text-slate-600">
+                      {editVendaId === v.id ? (
+                        <select autoFocus defaultValue={v.atendenteId ?? ""} disabled={editVendaBusy}
+                          onChange={e => salvarAtendenteVenda(v.id, e.target.value)}
+                          onBlur={() => setEditVendaId(null)}
+                          className="border border-slate-200 rounded-lg px-2 py-1 text-xs focus:outline-none focus:border-red-400 bg-white">
+                          <option value="" disabled>Selecione...</option>
+                          {atendentes.map(a => <option key={a.id} value={a.id}>{a.nome}</option>)}
+                        </select>
+                      ) : (
+                        <button onClick={() => setEditVendaId(v.id)}
+                          className="flex items-center gap-1 hover:text-red-700 transition-colors group">
+                          {v.atendente || "—"}
+                          <Edit2 size={11} className="text-slate-300 group-hover:text-red-500" />
+                        </button>
+                      )}
+                    </Td>
                     <Td className="text-xs text-slate-500">{v.pag || "—"}</Td>
                     <Td className="text-slate-600 text-xs">{v.itens.map(i => `${i.qtd}×${i.nome}`).join(", ")}</Td>
                     <Td className="text-xs font-bold text-emerald-600 whitespace-nowrap">{fmtCur(v.total)}</Td>
