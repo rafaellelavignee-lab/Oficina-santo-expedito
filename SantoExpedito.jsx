@@ -268,10 +268,10 @@ export default function App() {
     if (!atendenteId) return;
     setEditVendaBusy(true);
     try {
-      const r = await fetch(`/api/vendas/${vendaId}`, {
+      const r = await fetch("/api/vendas", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ atendenteId }),
+        body: JSON.stringify({ id: vendaId, atendenteId }),
       });
       const data = await r.json();
       if (!r.ok) { alert(data.error || "Não foi possível alterar o atendente."); return; }
